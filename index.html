@@ -1,131 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Survey Brain</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
-    body {
-      margin: 2rem;
-      max-width: 700px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    h1 {
-      color: #003366;
-      font-weight: 700;
-    }
-    #results .card {
-      margin-top: 1rem;
-      padding: 1rem;
-    }
-    .progress {
-      height: 6px;
-      background-color: #e0e0e0;
-      border-radius: 3px;
-      overflow: hidden;
-      margin-top: 0.5rem;
-    }
-    .progress-bar {
-      height: 100%;
-      background-color: #0070f3;
-      transition: width 0.3s ease-in-out;
-    }
-    label {
-      margin-top: 10px;
-      display: block;
-    }
+    body{max-width:920px;margin:2rem auto}
+    h1{color:#0b2770}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}}
+    .muted{color:#64748b}
+    .card{border:1px solid #e5e7eb;border-radius:10px;padding:14px;background:#fff}
+    .progress{height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden}
+    .progress>span{display:block;height:100%;background:#0b57d0}
+    #overview{white-space:pre-wrap}
   </style>
 </head>
-
 <body>
   <h1>Survey Brain</h1>
-  <p>Evidence-based recommendations</p>
+  <p class="muted">Answer a few questions. We’ll score options and include a GPT overview to validate and explain the choice.</p>
 
-  <main>
+  <article class="card">
+    <h3>Property & Demand</h3>
     <div class="grid">
-      <div>
-        <label for="flow">Flow rate (L/min)</label>
-        <input id="flow" type="number" value="12">
-
-        <label for="standing_pressure">Static mains pressure (bar)</label>
-        <input id="standing_pressure" type="number" step="0.1" value="3.5">
-
-        <label for="working_pressure">Working pressure (flow @ pressure)</label>
-        <input id="working_pressure" placeholder="e.g. 12 L/min @ 1.2 bar">
-
-        <label for="test_method">Full pressure test</label>
+      <label>Bathrooms
+        <input id="bathrooms" type="number" value="1" min="1"/>
+      </label>
+      <label>Simultaneous use (showers/taps)?
+        <select id="simultaneous_use">
+          <option value="no" selected>No</option>
+          <option value="yes">Yes</option>
+        </select>
+      </label>
+      <label>Standing mains pressure (bar)
+        <input id="standing_pressure" type="number" step="0.1" value="3.0"/>
+      </label>
+      <label>Working pressure & flow (e.g. 12 L/min @ 1.2 bar)
+        <input id="working_pf" placeholder="e.g. 12 L/min @ 1.2 bar"/>
+      </label>
+      <label>Water test method
         <select id="test_method">
-          <option>Single tap</option>
-          <option>Outside tap</option>
-          <option>3 tap test</option>
+          <option value="single_tap">Flow cup (single tap)</option>
+          <option value="outside_tap">Outside tap (pressure gauge)</option>
+          <option value="three_tap">Gold standard (3 taps)</option>
         </select>
-
-        <label for="system">Existing system</label>
-        <select id="system">
-          <option>Regular (open vented)</option>
-          <option>System (sealed)</option>
-          <option>Combi</option>
-        </select>
-
-        <label for="hot_water">Current hot water type</label>
-        <select id="hot_water">
-          <option>Vented (tank)</option>
-          <option>Unvented (cylinder)</option>
-          <option>Instant (combi)</option>
-        </select>
-
-        <label for="bathrooms">Bathrooms</label>
-        <input id="bathrooms" type="number" value="1">
-
-        <label for="occupancy">Occupancy</label>
-        <select id="occupancy">
-          <option>Single occupant</option>
-          <option>Always 2 people</option>
-          <option>Mostly 2 but family often stay</option>
-          <option>Family (3+ full time)</option>
-        </select>
-
-        <label for="disruption">Disruption tolerance</label>
-        <select id="disruption">
-          <option>Low</option>
-          <option>Medium</option>
-          <option>High</option>
-        </select>
-
-        <label for="cyl_space">Space for cylinder</label>
-        <select id="cyl_space">
-          <option>Tight</option>
-          <option>Ample</option>
-        </select>
-
-        <label for="electrics_16a">16 A circuit available (Mixergy)</label>
-        <select id="electrics_16a">
-          <option>No</option>
-          <option>Yes</option>
-        </select>
-
-        <label for="persona">Customer persona</label>
-        <select id="persona">
-          <option>Post-retirement</option>
-          <option>Young professional</option>
-          <option>Family household</option>
-          <option>Empty nesters</option>
-        </select>
-
-        <label for="notes">Additional info (free text)</label>
-        <textarea id="notes" placeholder="Add any extra notes here..."></textarea>
-
-        <div style="margin-top:14px">
-          <button id="go" onclick="run()">Get recommendations (top 4)</button>
-          <span id="status" class="muted"></span>
-        </div>
-      </div>
+      </label>
+      <label>Measured flow at kitchen/bath (L/min)
+        <input id="flow_lpm" type="number" step="0.1" value="12"/>
+      </label>
     </div>
+  </article>
 
-    <div id="results" class="card"></div>
-  </main>
+  <article class="card">
+    <h3>Existing Setup & Constraints</h3>
+    <div class="grid">
+      <label>Existing boiler
+        <select id="existing_system">
+          <option value="regular">Regular (open vented)</option>
+          <option value="system">System (with cylinder)</option>
+          <option value="combi">Combi</option>
+          <option value="back_boiler">Back boiler</option>
+          <option value="electric">Electric</option>
+          <option value="thermal_store">Thermal store</option>
+        </select>
+      </label>
+      <label>Hot water type
+        <select id="hot_water">
+          <option value="vented">Vented (tank)</option>
+          <option value="unvented">Unvented</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+      <label>Space for cylinder
+        <select id="cyl_space">
+          <option value="none">None</option>
+          <option value="tight">Tight</option>
+          <option value="ample" selected>Ample</option>
+        </select>
+      </label>
+      <label>Disruption tolerance
+        <select id="disruption">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+      <label>16 A circuit available (Mixergy)
+        <select id="electrics_16a">
+          <option value="yes">Yes</option>
+          <option value="no" selected>No</option>
+          <option value="unknown">Unknown</option>
+        </select>
+      </label>
+      <label>Property fabric / system condition
+        <select id="property_condition">
+          <option value="gravity_old">Old gravity/vented pipework</option>
+          <option value="modern_pressurised">Modern pressurised</option>
+          <option value="unknown" selected>Unknown</option>
+        </select>
+      </label>
+    </div>
+  </article>
+
+  <article class="card">
+    <h3>People & Priorities</h3>
+    <div class="grid">
+      <label>Occupancy
+        <select id="occupancy">
+          <option value="single">Single</option>
+          <option value="two_always" selected>Always 2</option>
+          <option value="two_plus_guests">Mostly 2 + guests</option>
+          <option value="family3plus">Family 3+</option>
+        </select>
+      </label>
+      <label>Future plans (solar/heat pump)
+        <select id="future_plans">
+          <option value="no" selected>No</option>
+          <option value="yes">Yes</option>
+          <option value="unsure">Unsure</option>
+        </select>
+      </label>
+      <label>Budget priority
+        <select id="budget_priority">
+          <option value="install_cost" selected>Lowest install cost</option>
+          <option value="running_costs">Lowest bills</option>
+          <option value="long_term_value">Long-term value</option>
+          <option value="future_flex">Future flexibility</option>
+        </select>
+      </label>
+      <label>Reliability priority (hot water security)?
+        <select id="reliability_priority">
+          <option value="no" selected>No</option>
+          <option value="yes">Yes</option>
+        </select>
+      </label>
+    </div>
+    <label>Additional info (free text)
+      <textarea id="notes" placeholder="e.g. wants a combi; cylinder cupboard can move; brand prefs; guests weekends…"></textarea>
+    </label>
+
+    <div style="margin-top:12px">
+      <button id="go" class="contrast">Get recommendations</button>
+      <span id="status" class="muted" style="margin-left:8px"></span>
+    </div>
+  </article>
+
+  <article class="card" id="overviewWrap" style="display:none">
+    <h3>GPT Overview</h3>
+    <p id="overview" class="muted"></p>
+  </article>
+
+  <section id="results"></section>
 
   <script src="recommend.js"></script>
 </body>
