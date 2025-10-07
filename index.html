@@ -1,270 +1,76 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Survey Brain</title>
-<style>
-  :root { color-scheme: light dark; --bg:#0b0d12; --fg:#f5f7fb; --muted:#a8b0c2; --card:#0f1320; --line:#1f2740; --accent:#3b82f6;}
-  @media (prefers-color-scheme: light){ :root{ --bg:#ffffff; --fg:#111827; --muted:#6b7280; --card:#ffffff; --line:#e5e7eb; --accent:#2563eb; } }
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-  .wrap{max-width:1100px;margin:0 auto;padding:16px}
-  .banner{position:sticky;top:0;z-index:2;background:var(--accent);color:#fff;padding:12px 16px}
-  h1{margin:0;font-size:18px} h2{margin:.6rem 0 .2rem} .muted{color:var(--muted)}
-  .grid{display:grid;gap:12px} .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:repeat(3,1fr)}
-  @media (max-width:900px){ .g2,.g3{grid-template-columns:1fr} }
-  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
-  label{font-weight:600;display:block;margin:6px 0} select,input,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--fg)}
-  button{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--fg);cursor:pointer}
-  button.primary{background:var(--accent);border-color:transparent;color:#fff}
-  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-  .pill{background:rgba(59,130,246,.15);border:1px solid var(--accent);padding:2px 8px;border-radius:999px;font-size:12px}
-  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media (max-width:900px){.cols{grid-template-columns:1fr}}
-  .rec h3{margin:.2rem 0} .rec ul{margin:.2rem 0 .6rem .9rem} .evidence{font-size:13px;border-top:1px dashed var(--line);padding-top:8px}
-  .score{font-size:12px;color:var(--muted)}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Survey Brain</title>
+  <style>
+    body { font-family: system-ui; margin: 20px; background: #f5f5f5; }
+    h1 { color: #003366; }
+    section { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+    button { padding: 10px 20px; font-size: 16px; background: #0044cc; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  </style>
 </head>
 <body>
-  <div class="banner"><h1>Survey Brain</h1><div class="muted">Evidence-based two-option recommender</div></div>
-  <div class="wrap">
+  <h1>Survey Brain</h1>
+  <p>Evidence-based two-option recommender</p>
 
-    <div id="form-area" class="card"></div>
+  <section>
+    <label>Flow rate (L/min)</label><br>
+    <input id="flow" type="number" value="12"><br><br>
 
-    <div class="row" style="margin-top:10px">
-      <button id="btn-recommend" class="primary">Get 2 recommendations</button>
-      <span id="status" class="muted"></span>
-    </div>
+    <label>System type</label><br>
+    <select id="system">
+      <option value="regular">Regular (open vented)</option>
+      <option value="combi">Combi</option>
+      <option value="system">System (with cylinder)</option>
+    </select><br><br>
 
-    <div id="results" class="cols" style="margin-top:12px"></div>
+    <label>Customer persona</label><br>
+    <select id="persona">
+      <option value="elderly_couple">Elderly couple</option>
+      <option value="young_family">Young family</option>
+      <option value="empty_nester">Empty nester</option>
+    </select><br><br>
 
-    <div class="card" style="margin-top:12px">
-      <h2>Evidence</h2>
-      <div id="evidence-box" class="evidence muted"></div>
-    </div>
+    <button onclick="run()">Get 2 recommendations</button>
+  </section>
 
-  </div>
+  <section id="results"></section>
 
-<script>
-const CONFIG = {
-  QUESTIONS_URL: 'questions.json',
-  RULES_URL: 'rules.json',
-  EVIDENCE_URL: 'evidence.json',
-  PROMPT_URL: 'prompt.md',
-  PROXY_URL: '/api/recommend' // TODO: replace with your serverless endpoint
-};
+  <script>
+    const CONFIG = {
+      PROXY_URL: '/.netlify/functions/recommend'
+    };
 
-let QUESTIONS, RULES, EVIDENCE, PROMPT;
+    async function run() {
+      const flow = document.getElementById('flow').value;
+      const system = document.getElementById('system').value;
+      const persona = document.getElementById('persona').value;
+      const payload = { flow, system, persona };
 
-async function loadText(url){ const r = await fetch(url+'?v='+Date.now()); if(!r.ok) throw new Error(url); return r.text(); }
-async function loadJSON(url){ const t = await loadText(url); return JSON.parse(t); }
+      const results = document.getElementById('results');
+      results.innerHTML = 'Thinking...';
 
-function el(tag, attrs={}, ...children){
-  const n = document.createElement(tag);
-  Object.entries(attrs).forEach(([k,v])=>{
-    if(k==='class') n.className=v;
-    else if(k==='html') n.innerHTML=v;
-    else n.setAttribute(k,v);
-  });
-  children.forEach(c=> n.append(c));
-  return n;
-}
-
-function buildForm(){
-  const root = el('div', {class:'grid g2'});
-  for(const sec of QUESTIONS.sections){
-    const card = el('div',{class:'card'});
-    card.append(el('h2', {html:sec.title}));
-    const grid = el('div',{class: sec.layout || 'grid g2'});
-    for(const f of sec.fields){
-      const wrap = el('div');
-      wrap.append(el('label',{for:f.id, html:f.label}));
-      let input;
-      if(f.type==='select'){
-        input = el('select',{id:f.id});
-        (f.options||[]).forEach(o=>{
-          const opt = typeof o==='string'? {value:o,label:o} : o;
-          input.append(el('option',{value:opt.value??opt,label:opt.label??opt.value??opt}));
+      try {
+        const r = await fetch(CONFIG.PROXY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
-      } else if(f.type==='number'){
-        input = el('input',{id:f.id,type:'number',step:f.step||'any',placeholder:f.placeholder||''});
-      } else {
-        input = el('input',{id:f.id,type:'text',placeholder:f.placeholder||''});
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+
+        results.innerHTML = `
+          <h2>Recommendations</h2>
+          ${data.recommendations.map(r => `
+            <p><b>${r.title}</b><br>${r.reason}</p>
+          `).join('')}
+        `;
+      } catch (e) {
+        results.innerHTML = `<b>Model call failed:</b> ${e.message}`;
       }
-      if(f.hint) wrap.append(el('div',{class:'muted', html:f.hint}));
-      wrap.append(input);
-      grid.append(wrap);
     }
-    card.append(grid);
-    root.append(card);
-  }
-  document.getElementById('form-area').innerHTML='';
-  document.getElementById('form-area').append(root);
-}
-
-function readForm(){
-  const data = {};
-  for(const sec of QUESTIONS.sections){
-    for(const f of sec.fields){
-      const v = (document.getElementById(f.id)||{}).value;
-      data[f.id] = (f.type==='number' && v!=='') ? Number(v) : v;
-    }
-  }
-  // derived flags
-  data.high_demand = (Number(data.bathrooms)>=2) || (data.shower_type==='multiple_mixers');
-  data.full_pressure_test = {
-    method: data.pressure_test_method, // single_tap / two_tap / outside_tap
-    mains_drop_bar: Number(data.mains_drop_bar||0) // optional drop measured during 2-tap test
-  };
-  data.electrics_16a = (data.electrics_16a==='yes');
-  data.water_softened = (data.water_softened==='yes');
-  return data;
-}
-
-function evalWhen(expr, d){
-  // very small safe eval: supports &&, ||, comparisons, !, includes()
-  // Replace identifiers with d.<id>
-  const safe = expr
-    .replace(/\bincludes\(/g,'__includes__(')
-    .replace(/([a-zA-Z_][a-zA-Z0-9_]*)/g,(m)=>{
-      if(['true','false','null','undefined'].includes(m)) return m;
-      if(!isNaN(m)) return m;
-      return `d.${m}`;
-    });
-  const __includes__ = (arr,val)=> (Array.isArray(arr)?arr.includes(val):false);
-  try { return Function('d','__includes__',`return (${safe});`)(d,__includes__); }
-  catch(e){ console.warn('Bad rule when:', expr, e); return false; }
-}
-
-function score(d){
-  const setups = [...RULES.setups];
-  const scores = Object.fromEntries(setups.map(s=>[s,0]));
-  const notes = new Set(); const prereq = new Set(); const risks = new Set();
-
-  for(const w of RULES.weights){
-    if(evalWhen(w.when, d)){
-      if(w.delta){ for(const [k,v] of Object.entries(w.delta)){ if(scores[k]!=null) scores[k]+=v; } }
-      if(w.note) notes.add(w.note);
-      if(w.prereq) prereq.add(w.prereq);
-      if(w.risk) risks.add(w.risk);
-    }
-  }
-
-  // Build shortlist top-2
-  const ranked = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-  const shortlist = ranked.slice(0,2).map(([setup])=>{
-    // simple brand hinting (can move to rules later)
-    let brand = 'Any tier-1';
-    if (d.water_softened) brand = 'Worcester (softened water)';
-    if (d.needs_rear_flue==='yes') brand = 'Vaillant / Ideal (rear flue)';
-    return { setup, brand };
-  });
-
-  // Attach evidence notes from RULES.notes
-  for(const n of (RULES.notes||[])){
-    const cond = n.when.replace(/ in top2/g, `__includes__(${JSON.stringify(shortlist.map(s=>s.setup))}`);
-    if(evalWhen(cond, d)) notes.add(n.text);
-  }
-
-  return {
-    scores, ranked, shortlist,
-    notes: [...notes], prerequisites: [...prereq], risks: [...risks]
-  };
-}
-
-function renderResults(res, gpt){
-  const box = document.getElementById('results'); box.innerHTML='';
-  if(!gpt || !gpt.recommendations){ box.append(el('div',{class:'muted',html:'No result yet.'})); return; }
-  gpt.recommendations.forEach((r,i)=>{
-    const c = el('div',{class:'card rec'});
-    c.append(el('h3',{html:`${i+1}. ${r.title}`}));
-    if(r.rationale){ const ul=el('ul'); r.rationale.forEach(t=>ul.append(el('li',{html:t}))); c.append(ul); }
-    if(r.prerequisites?.length){ c.append(el('div',{class:'pill',html:'Prerequisites'})); const ul=el('ul'); r.prerequisites.forEach(t=>ul.append(el('li',{html:t}))); c.append(ul); }
-    if(r.risks?.length){ c.append(el('div',{class:'pill',html:'Risks'})); const ul=el('ul'); r.risks.forEach(t=>ul.append(el('li',{html:t}))); c.append(ul); }
-    if(r.next_steps?.length){ c.append(el('div',{class:'pill',html:'Next steps'})); const ul=el('ul'); r.next_steps.forEach(t=>ul.append(el('li',{html:t}))); c.append(ul); }
-    c.append(el('div',{class:'score',html:`Confidence: ${(r.confidence*100|0)}%`}));
-    box.append(c);
-  });
-
-  // Evidence visible
-  const ev = document.getElementById('evidence-box');
-  ev.innerHTML = '';
-  (EVIDENCE?.facts||[]).forEach(f=>{
-    ev.append(el('div',{html:`• ${f.text}`}));
-  });
-  // Also append dynamic notes coming from rules evaluation
-  if(res.notes?.length){
-    ev.append(el('div',{class:'muted',html:'— Contextual notes —'}));
-    res.notes.forEach(n=> ev.append(el('div',{html:`• ${n}`})));
-  }
-}
-
-async function getGPT(recommend_payload){
-  // Replace with your proxy; returns {recommendations:[...], notes:"..."}
-  const r = await fetch(CONFIG.PROXY_URL, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(recommend_payload)
-  });
-  if(!r.ok) throw new Error('Proxy error');
-  return r.json();
-}
-
-function buildPayload(d, res){
-  return {
-    observations: d,
-    local_scoring: {
-      shortlist: res.shortlist,
-      ranked: res.ranked,
-      prerequisites: res.prerequisites,
-      risks: res.risks,
-      notes: res.notes
-    },
-    must_return: 2,
-    brand_constraints: ["Worcester","Vaillant","Ideal"],
-    mi_rules: ["condensate_external_42mm"],
-    prompt: PROMPT,
-    evidence: EVIDENCE
-  };
-}
-
-async function init(){
-  try{
-    [QUESTIONS, RULES, EVIDENCE, PROMPT] = await Promise.all([
-      loadJSON(CONFIG.QUESTIONS_URL),
-      loadJSON(CONFIG.RULES_URL),
-      loadJSON(CONFIG.EVIDENCE_URL),
-      loadText(CONFIG.PROMPT_URL)
-    ]);
-  }catch(e){
-    alert('Failed to load config: '+e.message);
-    return;
-  }
-  buildForm();
-
-  document.getElementById('btn-recommend').addEventListener('click', async ()=>{
-    const status = document.getElementById('status');
-    status.textContent = 'Scoring…';
-    const d = readForm();
-    const res = score(d);
-    status.textContent = 'Calling model…';
-    const payload = buildPayload(d, res);
-    try{
-      const gpt = await getGPT(payload);
-      status.textContent = 'Done.';
-      renderResults(res, gpt);
-    }catch(err){
-      status.textContent = 'Model call failed (showing local shortlist).';
-      renderResults(res, { recommendations: res.shortlist.map(s=>({
-        title: s.setup.replaceAll('_',' '),
-        rationale: res.notes.slice(0,3),
-        prerequisites: res.prerequisites,
-        risks: res.risks,
-        next_steps: ["Verify flow & pressure","Confirm flue/condensate route","Confirm electrics (16A if Mixergy)"],
-        confidence: 0.5
-      }))});
-    }
-  });
-}
-init();
-</script>
+  </script>
 </body>
 </html>
