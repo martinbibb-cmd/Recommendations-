@@ -21,157 +21,166 @@
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Survey Brain</h1>
-    <p class="sub">Evidence-based two-option recommender</p>
+<div class="wrap">
+  <h1>Survey Brain</h1>
+  <p class="sub">Evidence-based two-option recommender</p>
 
-    <div class="card">
-      <div class="grid">
-        <div>
-          <label for="flow">Flow rate (L/min)</label>
-          <input id="flow" type="number" value="12" step="0.1" />
-        </div>
-        <div>
-          <label for="mains_pressure">Static mains pressure (bar)</label>
-          <input id="mains_pressure" type="number" value="3.5" step="0.1" />
-        </div>
-
-        <div>
-          <label for="test_method">Full pressure test</label>
-          <select id="test_method">
-            <option value="single_tap">Single tap</option>
-            <option value="two_tap">Two taps simultaneously</option>
-            <option value="outside_tap">Outside tap</option>
-          </select>
-        </div>
-        <div>
-          <label for="drop_bar">Pressure drop under two-tap (bar)</label>
-          <input id="drop_bar" type="number" value="0" step="0.1" />
-        </div>
-
-        <div>
-          <label for="system">Existing system</label>
-          <select id="system">
-            <option value="regular">Regular (open vented)</option>
-            <option value="system">System (with cylinder)</option>
-            <option value="combi">Combi</option>
-            <option value="back_boiler">Back boiler</option>
-            <option value="electric">Electric</option>
-            <option value="thermal_store">Thermal store</option>
-          </select>
-        </div>
-        <div>
-          <label for="hot_water">Current hot water type</label>
-          <select id="hot_water">
-            <option value="vented">Vented (tank)</option>
-            <option value="unvented">Unvented</option>
-            <option value="none">None</option>
-          </select>
-        </div>
-
-        <div>
-          <label for="bathrooms">Bathrooms</label>
-          <input id="bathrooms" type="number" value="1" />
-        </div>
-        <div>
-          <label for="disruption">Disruption tolerance</label>
-          <select id="disruption">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-
-        <div>
-          <label for="cyl_space">Space for cylinder</label>
-          <select id="cyl_space">
-            <option value="none">None</option>
-            <option value="tight">Tight</option>
-            <option value="ample" selected>Ample</option>
-          </select>
-        </div>
-        <div>
-          <label for="electrics_16a">16 A circuit available (Mixergy)</label>
-          <select id="electrics_16a">
-            <option value="yes">Yes</option>
-            <option value="no" selected>No</option>
-            <option value="unknown">Unknown</option>
-          </select>
-        </div>
-
-        <div>
-          <label for="persona">Customer persona</label>
-          <select id="persona">
-            <option value="elderly_couple">Elderly couple</option>
-            <option value="young_pro">Young professional</option>
-            <option value="starting_family">Starting family</option>
-            <option value="growing_family">Growing family</option>
-            <option value="empty_nesters">Empty nesters</option>
-            <option value="planning_retirement">Planning retirement</option>
-          </select>
-        </div>
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label for="flow">Flow rate (L/min)</label>
+        <input id="flow" type="number" value="12" step="0.1" />
+      </div>
+      <div>
+        <label for="standing_pressure">Standing pressure (bar)</label>
+        <input id="standing_pressure" type="number" value="3.5" step="0.1" />
       </div>
 
-      <div style="margin-top:14px">
-        <button id="go">Get 2 recommendations</button>
-        <span id="status" class="muted" style="margin-left:10px"></span>
+      <div>
+        <label for="working_pressure">Working pressure (flow @ pressure)</label>
+        <input id="working_pressure" placeholder="e.g. 12 L/min @ 1.2 bar" />
+      </div>
+      <div>
+        <label for="test_method">Full pressure test</label>
+        <select id="test_method">
+          <option value="single_tap">Single tap</option>
+          <option value="two_tap">Two taps simultaneously</option>
+          <option value="outside_tap">Outside tap</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="system">Existing system</label>
+        <select id="system">
+          <option value="regular">Regular (open vented)</option>
+          <option value="system">System (with cylinder)</option>
+          <option value="combi">Combi</option>
+          <option value="back_boiler">Back boiler</option>
+          <option value="electric">Electric</option>
+          <option value="thermal_store">Thermal store</option>
+        </select>
+      </div>
+      <div>
+        <label for="hot_water">Current hot water type</label>
+        <select id="hot_water">
+          <option value="vented">Vented (tank)</option>
+          <option value="unvented">Unvented</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="bathrooms">Bathrooms</label>
+        <input id="bathrooms" type="number" value="1" />
+      </div>
+      <div>
+        <label for="occupancy">Occupancy</label>
+        <select id="occupancy">
+          <option value="single">Single occupant</option>
+          <option value="two_always" selected>Always 2 people</option>
+          <option value="two_to_three">Will soon be 3+</option>
+          <option value="two_plus_guests">Mostly 2 but family often stay</option>
+          <option value="family4plus">Family of 4+ full time</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="disruption">Disruption tolerance</label>
+        <select id="disruption">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      <div>
+        <label for="cyl_space">Space for cylinder</label>
+        <select id="cyl_space">
+          <option value="none">None</option>
+          <option value="tight">Tight</option>
+          <option value="ample" selected>Ample</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="electrics_16a">16 A circuit available (Mixergy)</label>
+        <select id="electrics_16a">
+          <option value="yes">Yes</option>
+          <option value="no" selected>No</option>
+          <option value="unknown">Unknown</option>
+        </select>
+      </div>
+      <div>
+        <label for="persona">Customer persona</label>
+        <select id="persona">
+          <option value="elderly_couple">Elderly couple</option>
+          <option value="young_pro">Young professional</option>
+          <option value="starting_family">Starting family</option>
+          <option value="growing_family">Growing family</option>
+          <option value="empty_nesters">Empty nesters</option>
+          <option value="planning_retirement">Planning retirement</option>
+        </select>
       </div>
     </div>
 
-    <div id="results" class="card"></div>
+    <div style="margin-top:14px">
+      <button id="go">Get 2 recommendations</button>
+      <span id="status" class="muted" style="margin-left:10px"></span>
+    </div>
   </div>
+
+  <div id="results" class="card"></div>
+</div>
 
 <script>
 const CONFIG = { PROXY_URL: '/.netlify/functions/recommend' };
 
 function readForm(){
-  const val = id => document.getElementById(id).value;
+  const v = id => document.getElementById(id).value;
   return {
-    flow_lpm: Number(val('flow')),
-    mains_pressure_bar: Number(val('mains_pressure')),
-    pressure_test_method: val('test_method'),
-    mains_drop_bar: Number(val('drop_bar') || 0),
-    existing_system: val('system'),
-    hot_water: val('hot_water'),
-    bathrooms: Number(val('bathrooms')),
-    disruption_tolerance: val('disruption'),
-    space_for_cylinder: val('cyl_space'),
-    electrics_16a: val('electrics_16a'),
-    persona: val('persona')
+    flow_lpm: Number(v('flow')),
+    standing_pressure_bar: Number(v('standing_pressure')),
+    working_pressure_desc: v('working_pressure'),
+    pressure_test_method: v('test_method'),
+    existing_system: v('system'),
+    hot_water: v('hot_water'),
+    bathrooms: Number(v('bathrooms')),
+    occupancy: v('occupancy'),
+    disruption_tolerance: v('disruption'),
+    space_for_cylinder: v('cyl_space'),
+    electrics_16a: v('electrics_16a'),
+    persona: v('persona')
   };
 }
 
 async function run(){
-  const status = document.getElementById('status');
-  const results = document.getElementById('results');
-  results.innerHTML = '';
-  status.textContent = 'Calling model…';
-
+  const status=document.getElementById('status');
+  const results=document.getElementById('results');
+  results.innerHTML='';
+  status.textContent='Calling model…';
   try{
-    const payload = readForm();
-    const r = await fetch(CONFIG.PROXY_URL, {
+    const payload=readForm();
+    const r=await fetch(CONFIG.PROXY_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
+      body:JSON.stringify(payload)
     });
-    if(!r.ok) throw new Error(await r.text());
-    const data = await r.json();
-
-    results.innerHTML = '<h2>Recommendations</h2>' +
-      (data.recommendations||[]).map(item => `
+    if(!r.ok)throw new Error(await r.text());
+    const data=await r.json();
+    results.innerHTML='<h2>Recommendations</h2>'+
+      (data.recommendations||[]).map(x=>`
         <div class="rec">
-          <div style="font-weight:700">${item.title}</div>
-          <div>${item.reason}</div>
+          <div style="font-weight:700">${x.title}</div>
+          <div>${x.reason}</div>
         </div>
-      `).join('') ||
+      `).join('')||
       '<div class="muted">No recommendations returned.</div>';
-    status.textContent = 'Done.';
+    status.textContent='Done.';
   }catch(e){
-    status.textContent = 'Model call failed';
-    results.innerHTML = `<div class="muted">${e.message}</div>`;
+    status.textContent='Model call failed';
+    results.innerHTML='<div class="muted">'+e.message+'</div>';
   }
 }
-document.getElementById('go').addEventListener('click', run);
+document.getElementById('go').addEventListener('click',run);
 </script>
 </body>
 </html>
