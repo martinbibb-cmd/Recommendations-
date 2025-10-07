@@ -1,0 +1,9 @@
+{
+  "facts": [
+    { "key":"uv_req", "text":"Unvented design flows typically 25–35 L/min with ≥1.5 bar static (CIBSE Guide G; manufacturer MI)." },
+    { "key":"condensate_42", "text":"External condensate should be 42 mm and insulated (BS 6798 / manufacturer instructions)." },
+    { "key":"two_tap_test", "text":"Two-tap (or outside tap) test reveals pressure stability; ≥0.3 bar drop under load suggests weak mains." },
+    { "key":"combi_eff_short_draw", "text":"Short DHW draws on combis often don’t reach condensing efficiency; pre-heat and draw length affect performance (EST trials)." },
+    { "key":"mixergy_modes", "text":"Mixergy cylinders support tariff shifting and integrate well with PV/heat pumps; vented or unvented variants available." }
+  ]
+}
