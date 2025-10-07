@@ -20,4 +20,4 @@ Return valid JSON:
 {
   "recommendations":[{...},{...}],
   "notes":"concise caveats"
-}
+} 
