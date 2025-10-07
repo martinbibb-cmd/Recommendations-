@@ -2,6 +2,7 @@ export default async (req) => {
   try {
     const input = await req.json();
 
+    // --------- Allowed output set (enforced) ----------
     const ALLOWED = [
       "Regular (open vented)",
       "System + Unvented Cylinder",
@@ -10,9 +11,10 @@ export default async (req) => {
       "Combi"
     ];
 
+    // --------- System prompt with domain rules ----------
     const SYSTEM = `
-You are an evidence-based UK gas boiler recommender.
-Choose ONLY from this list:
+You are an experienced UK heating adviser recommending boiler and cylinder configurations.
+Choose ONLY from:
 - Regular (open vented)
 - System + Unvented Cylinder
 - System + Mixergy (unvented)
@@ -20,31 +22,26 @@ Choose ONLY from this list:
 - Combi
 Never propose heat pumps or electric-only.
 
-Return JSON exactly:
+Scoring rules (weight these strongly):
+- If flow < 13 L/min OR working pressure < 1.5 bar → Unvented and Combi are weak choices.
+- If disruption_tolerance = "low" OR persona includes "elderly" → Prefer Regular or Regular + Mixergy (vented).
+- If ample cylinder space AND standing pressure ≥ 2.0 bar → Allow System + Unvented Cylinder or Mixergy (unvented).
+- If occupancy ≥ 3 or includes "family" → Lean towards stored systems (unvented or Mixergy).
+- MIXERGY: Requires a dedicated 16 A circuit on an RCD/MCB and adds significant cost.
+  - If electrics_16a != "yes", avoid Mixergy unless a clear benefit outweighs it.
+  - If you do pick Mixergy, mention the 16 A RCD/MCB requirement and higher cost in the reason.
+- Existing system has inertia: regular → regular unless strong, well-evidenced gains exist.
+
+Output strict JSON ONLY:
 {
   "recommendations":[
-    {"title":"<one of the allowed>","reason":"one concise evidence-based sentence"},
-    {"title":"<one of the allowed>","reason":"one concise evidence-based sentence"}
+    {"title":"<allowed option>","reason":"one concise evidence-based sentence"},
+    {"title":"<allowed option>","reason":"one concise evidence-based sentence"}
   ]
 }
-JSON only, no markdown.
 `;
 
-    // Minimal features passed to the model (already sanitized)
-    const USER = {
-      flow_lpm: Number(input.flow_lpm || 0),
-      mains_pressure_bar: Number(input.mains_pressure_bar || 0),
-      pressure_test_method: String(input.pressure_test_method || ""),
-      mains_drop_bar: Number(input.mains_drop_bar || 0),
-      existing_system: String(input.existing_system || ""),
-      hot_water: String(input.hot_water || ""),
-      bathrooms: Number(input.bathrooms || 0),
-      disruption_tolerance: String(input.disruption_tolerance || ""),
-      space_for_cylinder: String(input.space_for_cylinder || ""),
-      electrics_16a: String(input.electrics_16a || ""),
-      persona: String(input.persona || "")
-    };
-
+    // --------- Call OpenAI (key from Netlify env) ----------
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -53,11 +50,11 @@ JSON only, no markdown.
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.2,
+        temperature: 0.15,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM },
-          { role: "user", content: JSON.stringify(USER) }
+          { role: "user", content: JSON.stringify(input) }
         ]
       })
     });
@@ -67,9 +64,13 @@ JSON only, no markdown.
       return new Response(JSON.stringify({ error: errText }), { status: 500 });
     }
 
+    // --------- Parse + guard the model output ----------
     const data = await resp.json();
     let out;
     try { out = JSON.parse(data.choices?.[0]?.message?.content || "{}"); } catch { out = null; }
+    if (!out || !Array.isArray(out.recommendations)) out = { recommendations: [] };
+
+    // Title normaliser to the allowed set
     const fixTitle = (t) => {
       if (ALLOWED.includes(t)) return t;
       if (/mixergy/i.test(t) && /regular/i.test(t)) return "Regular + Mixergy (vented)";
@@ -80,20 +81,35 @@ JSON only, no markdown.
       return "Regular (open vented)";
     };
 
-    if (!out?.recommendations || !Array.isArray(out.recommendations)) {
-      out = { recommendations: [] };
-    }
-    out.recommendations = out.recommendations.slice(0,2).map(r => ({
+    out.recommendations = out.recommendations.slice(0, 2).map(r => ({
       title: fixTitle(String(r.title || "")),
-      reason: String(r.reason || "Evidence-based choice for inputs provided.")
+      reason: String(r.reason || "Evidence-based choice for the provided flow/pressure and household.")
     }));
+
+    // Ensure there are exactly 2 items
     while (out.recommendations.length < 2) {
-      const have = out.recommendations.map(r=>r.title);
+      const have = out.recommendations.map(r => r.title);
       const fallback = ALLOWED.find(t => !have.includes(t)) || "Combi";
-      out.recommendations.push({ title: fallback, reason: "Included as contrasting alternative." });
+      out.recommendations.push({
+        title: fallback,
+        reason: "Included as a contrasting option from the allowed list."
+      });
     }
 
-    return new Response(JSON.stringify(out), { headers: { "Content-Type": "application/json" } });
+    // --------- Mixergy 16 A / cost warning post-processor ----------
+    const needs16A = String(input?.electrics_16a || "").toLowerCase() !== "yes";
+    out.recommendations = out.recommendations.map(r => {
+      const isMix = /mixergy/i.test(r.title || "");
+      if (isMix && needs16A) {
+        const note = " Requires dedicated 16 A RCD/MCB; higher install cost.";
+        if (!/16\s*A|RCD|MCB|cost/i.test(r.reason)) r.reason += note;
+      }
+      return r;
+    });
+
+    return new Response(JSON.stringify(out), {
+      headers: { "Content-Type": "application/json" }
+    });
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
