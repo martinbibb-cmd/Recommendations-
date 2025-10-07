@@ -1,0 +1,31 @@
+{
+  "setups": [
+    "combi",
+    "system_unvented",
+    "regular_vented",
+    "system_mixergy_unvented",
+    "regular_mixergy_vented"
+  ],
+  "weights": [
+    { "id":"uv_good", "when":"flow_lpm>=30 && mains_pressure_bar>=1.5", "delta":{"system_unvented":2,"system_mixergy_unvented":2}, "prereq":"Confirm flow ≥30 L/min & static ≥1.5 bar" },
+    { "id":"poor_mains", "when":"flow_lpm<12 || mains_pressure_bar<1.5", "delta":{"combi":-2,"system_unvented":-2,"system_mixergy_unvented":-1,"regular_vented":2,"regular_mixergy_vented":2}, "note":"Poor mains pressure/flow" },
+    { "id":"two_tap_drop_high", "when":"pressure_test_method=='two_tap' && mains_drop_bar>=0.3", "delta":{"combi":-1,"system_unvented":-1,"system_mixergy_unvented":-1,"regular_vented":1,"regular_mixergy_vented":1}, "note":"Significant pressure drop under two-tap test" },
+    { "id":"space_none", "when":"space_for_cylinder=='none'", "delta":{"combi":3,"system_unvented":-3,"system_mixergy_unvented":-3,"regular_mixergy_vented":-3}, "risk":"No space for cylinder" },
+    { "id":"space_tight", "when":"space_for_cylinder=='tight'", "delta":{"system_unvented":-1,"system_mixergy_unvented":-1,"regular_mixergy_vented":-1}, "note":"Tight cylinder space" },
+    { "id":"high_demand", "when":"bathrooms>=2 || shower_type=='multiple_mixers'", "delta":{"system_unvented":3,"system_mixergy_unvented":3,"regular_mixergy_vented":2,"regular_vented":1,"combi":-2}, "note":"High simultaneous DHW demand" },
+    { "id":"loft_bad", "when":"['difficult','none'].includes(loft_access)", "delta":{"regular_vented":-1,"regular_mixergy_vented":-1}, "note":"Loft access poor" },
+    { "id":"eco_future", "when":"eco_conscious=='high' || ['solar','heat_pump'].includes(future_plans)", "delta":{"system_mixergy_unvented":3,"regular_mixergy_vented":2}, "note":"Future renewables / eco priority" },
+    { "id":"budget_low", "when":"budget=='low'", "delta":{"combi":2,"system_unvented":-1,"system_mixergy_unvented":-2,"regular_mixergy_vented":-1} },
+    { "id":"like_for_like_combi", "when":"disruption_tolerance=='low' && existing_system=='combi'", "delta":{"combi":2}, "note":"Low disruption keeps like-for-like" },
+    { "id":"like_for_like_regular", "when":"disruption_tolerance=='low' && existing_system=='regular'", "delta":{"regular_vented":2,"regular_mixergy_vented":2} },
+    { "id":"like_for_like_system", "when":"disruption_tolerance=='low' && existing_system=='system'", "delta":{"system_unvented":1,"system_mixergy_unvented":1} },
+    { "id":"hard_water_brand", "when":"water_hardness in ['hard','very_hard']", "delta":{}, "note":"Hard water: favour corrosion/scale mitigation; brand can be selected for softened water compatibility" },
+    { "id":"controls_pref_hive", "when":"controls_pref=='Hive'", "delta":{}, "note":"User preference: Hive" },
+    { "id":"controls_pref_hive_mini", "when":"controls_pref=='Hive Mini'", "delta":{}, "note":"User preference: Hive Mini" }
+  ],
+  "notes": [
+    { "when":"condensate_route=='external'", "text":"External condensate must be 42 mm and insulated (MI / BS 6798)." },
+    { "when":"system_unvented in top2 && (flow_lpm<30 || mains_pressure_bar<1.5)", "text":"Standard unvented typically needs ~30 L/min and ≥1.5 bar (CIBSE/MI)." },
+    { "when":"system_mixergy_unvented in top2 && electrics_16a==false", "text":"Mixergy requires a dedicated 16 A immersion circuit." }
+  ]
+}
