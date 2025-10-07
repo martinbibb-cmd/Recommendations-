@@ -1,0 +1,62 @@
+{
+  "sections": [
+    {
+      "id": "water",
+      "title": "System & Water",
+      "layout": "grid g2",
+      "fields": [
+        {"id":"existing_system","type":"select","label":"Existing system","options":["regular","system","combi","back_boiler","electric","thermal_store"]},
+        {"id":"hot_water","type":"select","label":"Hot water type","options":["vented","unvented","none"]},
+        {"id":"flow_lpm","type":"number","label":"Flow @ kitchen tap (L/min)","hint":"Measure fully open at kitchen tap"},
+        {"id":"mains_pressure_bar","type":"number","label":"Static mains pressure (bar)","hint":"At stop tap, no draw-off"},
+        {"id":"pressure_test_method","type":"select","label":"Full pressure test method","options":[
+          {"value":"single_tap","label":"Single tap"},
+          {"value":"two_tap","label":"Two taps simultaneously"},
+          {"value":"outside_tap","label":"Outside tap (preferred)"}
+        ]},
+        {"id":"mains_drop_bar","type":"number","label":"Pressure drop during two-tap test (bar)","hint":"Only if two_tap used"},
+        {"id":"loft_access","type":"select","label":"Loft access","options":["boarded","unboarded","difficult","none"]},
+        {"id":"space_for_cylinder","type":"select","label":"Space for cylinder","options":["none","tight","ample"]},
+        {"id":"condensate_route","type":"select","label":"Condensate route","options":["internal","external"]},
+        {"id":"gas_pipe_mm","type":"select","label":"Gas pipe size to appliance (mm)","options":["15","22","unknown"]},
+        {"id":"water_hardness","type":"select","label":"Water hardness","options":["soft","medium","hard","very_hard"]},
+        {"id":"controls_pref","type":"select","label":"Controls preference","options":["simple","Hive","Hive Mini"]}
+      ]
+    },
+    {
+      "id": "customer",
+      "title": "Customer / Household",
+      "layout": "grid g2",
+      "fields": [
+        {"id":"persona","type":"select","label":"Persona","options":["elderly_couple","empty_nesters","young_pro","starting_family","growing_family","soon_empty_nesters","planning_retirement"]},
+        {"id":"disruption_tolerance","type":"select","label":"Disruption tolerance","options":["low","medium","high"]},
+        {"id":"eco_conscious","type":"select","label":"Eco consciousness","options":["low","medium","high"]},
+        {"id":"budget","type":"select","label":"Budget sensitivity","options":["low","medium","high"]}
+      ]
+    },
+    {
+      "id": "property",
+      "title": "Property",
+      "layout": "grid g2",
+      "fields": [
+        {"id":"property_type","type":"select","label":"Property type","options":["flat","terrace","semi","detached","bungalow"]},
+        {"id":"beds","type":"number","label":"Bedrooms"},
+        {"id":"bathrooms","type":"number","label":"Bathrooms"},
+        {"id":"shower_type","type":"select","label":"Shower type","options":["electric","mixer","multiple_mixers"]},
+        {"id":"parking","type":"select","label":"Parking / permit","options":["unrestricted","permit_required","none"]}
+      ]
+    },
+    {
+      "id": "future",
+      "title": "Future & Energy",
+      "layout": "grid g2",
+      "fields": [
+        {"id":"future_plans","type":"select","label":"Future plans (2–5 yrs)","options":["stay","extend","add_bathroom","solar","heat_pump","move"]},
+        {"id":"electrics_16a","type":"select","label":"16 A circuit available (Mixergy)","options":["yes","no","unknown"]},
+        {"id":"cold_main_mm","type":"select","label":"Cold main size (mm)","options":["15","22","unknown"]},
+        {"id":"water_softened","type":"select","label":"Water softened","options":["yes","no"]},
+        {"id":"needs_rear_flue","type":"select","label":"Needs rear flue","options":["yes","no"]}
+      ]
+    }
+  ]
+}
