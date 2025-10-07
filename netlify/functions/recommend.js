@@ -2,7 +2,6 @@ export default async (req) => {
   try {
     const input = await req.json();
 
-    // --------- Allowed output set (enforced) ----------
     const ALLOWED = [
       "Regular (open vented)",
       "System + Unvented Cylinder",
@@ -11,10 +10,9 @@ export default async (req) => {
       "Combi"
     ];
 
-    // --------- System prompt with domain rules ----------
     const SYSTEM = `
-You are an experienced UK heating adviser recommending boiler and cylinder configurations.
-Choose ONLY from:
+You are an experienced UK heating adviser.
+Recommend up to four options ONLY from:
 - Regular (open vented)
 - System + Unvented Cylinder
 - System + Mixergy (unvented)
@@ -22,26 +20,25 @@ Choose ONLY from:
 - Combi
 Never propose heat pumps or electric-only.
 
-Scoring rules (weight these strongly):
-- If flow < 13 L/min OR working pressure < 1.5 bar → Unvented and Combi are weak choices.
-- If disruption_tolerance = "low" OR persona includes "elderly" → Prefer Regular or Regular + Mixergy (vented).
-- If ample cylinder space AND standing pressure ≥ 2.0 bar → Allow System + Unvented Cylinder or Mixergy (unvented).
-- If occupancy ≥ 3 or includes "family" → Lean towards stored systems (unvented or Mixergy).
-- MIXERGY: Requires a dedicated 16 A circuit on an RCD/MCB and adds significant cost.
-  - If electrics_16a != "yes", avoid Mixergy unless a clear benefit outweighs it.
-  - If you do pick Mixergy, mention the 16 A RCD/MCB requirement and higher cost in the reason.
-- Existing system has inertia: regular → regular unless strong, well-evidenced gains exist.
+Weighting rules:
+- If flow < 13 L/min OR working pressure < 1.5 bar → unvented and combi weak.
+- Low disruption or elderly persona → prefer Regular / Regular + Mixergy (vented).
+- Ample space and standing pressure ≥ 2.0 bar → allow unvented / Mixergy unvented.
+- Occupancy ≥ 3 or 'family' → bias to stored systems.
+- MIXERGY needs a dedicated 16 A RCD/MCB and is higher cost; if electrics_16a != "yes", de-prioritise. If you still pick it, mention the 16 A/cost note.
+- Existing system inertia: regular → regular unless strong gains.
 
-Output strict JSON ONLY:
+Return STRICT JSON ONLY:
 {
   "recommendations":[
-    {"title":"<allowed option>","reason":"one concise evidence-based sentence"},
-    {"title":"<allowed option>","reason":"one concise evidence-based sentence"}
+    {"title":"<allowed option>","reason":"one concise evidence-based sentence","match": 0-100},
+    ...
   ]
 }
+The match is your confidence the option fits inputs and constraints.
 `;
 
-    // --------- Call OpenAI (key from Netlify env) ----------
+    // Call OpenAI
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -64,13 +61,13 @@ Output strict JSON ONLY:
       return new Response(JSON.stringify({ error: errText }), { status: 500 });
     }
 
-    // --------- Parse + guard the model output ----------
+    // Parse output
     const data = await resp.json();
     let out;
     try { out = JSON.parse(data.choices?.[0]?.message?.content || "{}"); } catch { out = null; }
     if (!out || !Array.isArray(out.recommendations)) out = { recommendations: [] };
 
-    // Title normaliser to the allowed set
+    // Enforce allow-list + normalise + 16A warning
     const fixTitle = (t) => {
       if (ALLOWED.includes(t)) return t;
       if (/mixergy/i.test(t) && /regular/i.test(t)) return "Regular + Mixergy (vented)";
@@ -81,33 +78,33 @@ Output strict JSON ONLY:
       return "Regular (open vented)";
     };
 
-    out.recommendations = out.recommendations.slice(0, 2).map(r => ({
-      title: fixTitle(String(r.title || "")),
-      reason: String(r.reason || "Evidence-based choice for the provided flow/pressure and household.")
-    }));
+    const needs16A = String(input?.electrics_16a || "").toLowerCase() !== "yes";
+    const norm = out.recommendations.slice(0,4).map(r => {
+      const title = fixTitle(String(r.title || ""));
+      let reason = String(r.reason || "Evidence-based option.");
+      let match = Math.max(0, Math.min(100, Number(r.match ?? 0)));
 
-    // Ensure there are exactly 2 items
-    while (out.recommendations.length < 2) {
-      const have = out.recommendations.map(r => r.title);
-      const fallback = ALLOWED.find(t => !have.includes(t)) || "Combi";
-      out.recommendations.push({
-        title: fallback,
-        reason: "Included as a contrasting option from the allowed list."
+      if (/mixergy/i.test(title) && needs16A) {
+        if (!/16\s*A|RCD|MCB|cost/i.test(reason))
+          reason += " Requires dedicated 16 A RCD/MCB; higher install cost.";
+        // slightly penalise match if 16A missing
+        match = Math.max(0, match - 10);
+      }
+      return { title, reason, match };
+    });
+
+    // Pad if fewer than 4 come back
+    const ALTS = ALLOWED.filter(a => !norm.find(n => n.title === a));
+    while (norm.length < 4 && ALTS.length) {
+      const next = ALTS.shift();
+      norm.push({
+        title: next,
+        reason: "Included as a contrasting option from the allowed list.",
+        match: 40
       });
     }
 
-    // --------- Mixergy 16 A / cost warning post-processor ----------
-    const needs16A = String(input?.electrics_16a || "").toLowerCase() !== "yes";
-    out.recommendations = out.recommendations.map(r => {
-      const isMix = /mixergy/i.test(r.title || "");
-      if (isMix && needs16A) {
-        const note = " Requires dedicated 16 A RCD/MCB; higher install cost.";
-        if (!/16\s*A|RCD|MCB|cost/i.test(r.reason)) r.reason += note;
-      }
-      return r;
-    });
-
-    return new Response(JSON.stringify(out), {
+    return new Response(JSON.stringify({ recommendations: norm }), {
       headers: { "Content-Type": "application/json" }
     });
 
