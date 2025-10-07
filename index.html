@@ -137,8 +137,9 @@
   <div id="results" class="card"></div>
 </div>
 
-<script>
-PROXY_URL: 'https://survey-brain-api.martinbibb.workers.dev/api/recommend'
+const CONFIG = {
+  PROXY_URL: 'https://survey-brain-api.martinbibb.workers.dev/api/recommend'
+};
 
 function readForm(){
   const v = id => document.getElementById(id).value;
