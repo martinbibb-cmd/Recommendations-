@@ -11,14 +11,15 @@ export default async (req) => {
       "Combi"
     ];
 
-    // ---------- Parse helpers ----------
+    // ---------- Helpers ----------
     const num = (v, d=0) => {
       const n = Number(v);
       return Number.isFinite(n) ? n : d;
     };
     const str = (v) => String(v || "").toLowerCase();
+    const clamp01 = v => Math.max(0, Math.min(100, v));
 
-    // Try to pull a pressure figure from "12 L/min @ 1.2 bar" style text
+    // Parse “12 @ 1.2 bar”
     const parseWorkingBar = (s) => {
       const m = String(s || "").match(/@?\s*([0-9]+(?:\.[0-9]+)?)\s*bar/i);
       return m ? Number(m[1]) : NaN;
@@ -28,19 +29,19 @@ export default async (req) => {
     const flow = num(input.flow_lpm);
     const standBar = num(input.standing_pressure_bar);
     const workBar = parseWorkingBar(input.working_pressure_desc);
-    const workBarEff = Number.isFinite(workBar) ? workBar : (standBar ? Math.min(standBar, standBar - 0.3) : NaN);
+    const workBarEff = Number.isFinite(workBar) ? workBar : (standBar ? Math.max(0, standBar - 0.3) : NaN);
 
-    const sys = str(input.existing_system);                // 'regular' | 'system' | 'combi' | ...
-    const hw  = str(input.hot_water);                      // 'vented' | 'unvented' | 'none'
+    const sys = str(input.existing_system);          // regular | system | combi | back_boiler...
+    const hw  = str(input.hot_water);                // vented | unvented | none
     const baths = Math.max(0, num(input.bathrooms, 1));
-    const occ = str(input.occupancy);                      // 'two_plus_guests' | 'family4plus' etc
-    const dis = str(input.disruption_tolerance);           // 'low' | 'medium' | 'high'
-    const space = str(input.space_for_cylinder);           // 'none' | 'tight' | 'ample'
+    const occ = str(input.occupancy);                // two_plus_guests | family4plus ...
+    const dis = str(input.disruption_tolerance);     // low | medium | high
+    const space = str(input.space_for_cylinder);     // none | tight | ample
     const has16A = str(input.electrics_16a) === 'yes';
-    const persona = str(input.persona);
+    const persona = str(input.persona);              // post_retirement, etc.
     const notes = String(input.additional_info || "");
 
-    // ---------- Base scores (transparent rules) ----------
+    // ---------- Base scores ----------
     const base = {
       "Regular (open vented)":            60,
       "System + Unvented Cylinder":       50,
@@ -52,7 +53,7 @@ export default async (req) => {
     const goodPressure = (standBar >= 2.5 || workBarEff >= 2.0) && flow >= 18;
     const poorForMainsHW = (flow < 13) || (workBarEff && workBarEff < 1.5);
 
-    // Pressure/flow effects
+    // Pressure/flow
     if (goodPressure) {
       base["System + Unvented Cylinder"] += 20;
       base["System + Mixergy (unvented)"] += 20;
@@ -64,28 +65,53 @@ export default async (req) => {
       base["Combi"] -= 15;
     }
 
-    // Occupancy & bathrooms → stored systems bias
+    // Occupancy / bathrooms (stored systems bias)
     const storedDemand = baths >= 2 || /family|guests|two_to_three|two_plus_guests|family4plus/.test(occ);
     if (storedDemand) {
       base["System + Unvented Cylinder"] += 12;
-      base["System + Mixergy (unvented)"] += 14; // Mixergy excels at demand smoothing
+      base["System + Mixergy (unvented)"] += 14;
       base["Regular + Mixergy (vented)"] += 10;
       base["Combi"] -= 10;
       base["Regular (open vented)"] -= 4;
     }
 
-    // Disruption tolerance
-    if (dis === 'low' || /elderly/.test(persona)) {
-      base["Regular (open vented)"] += 14;
-      base["Regular + Mixergy (vented)"] += 10;
-      base["System + Unvented Cylinder"] -= 12;
-      base["System + Mixergy (unvented)"] -= 10;
-    } else if (dis === 'high') {
+    // -------- Disruption tolerance (UPDATED) --------
+    if (dis === 'low') {
+      // KEEP THE SAME SYSTEM TYPE regardless of age/persona
+      if (sys === 'regular' || (sys === 'back_boiler' && hw === 'vented')) {
+        base["Regular (open vented)"] += 20;
+        base["Regular + Mixergy (vented)"] += 12;
+        base["System + Unvented Cylinder"] -= 8;
+        base["System + Mixergy (unvented)"] -= 8;
+      } else if (sys === 'system' || hw === 'unvented') {
+        base["System + Unvented Cylinder"] += 18;
+        base["System + Mixergy (unvented)"] += 14;
+        base["Regular (open vented)"] -= 6;
+        base["Combi"] -= 8;
+      } else if (sys === 'combi') {
+        base["Combi"] += 16;
+        base["System + Unvented Cylinder"] -= 6;
+        base["Regular (open vented)"] -= 6;
+      }
+    }
+
+    // Persona: post_retirement → gentle nudge to lower disruption, but weaker than rule above
+    if (/post_retirement/.test(persona)) {
+      if (sys === 'regular' || sys === 'back_boiler') {
+        base["Regular (open vented)"] += 4;
+        base["Regular + Mixergy (vented)"] += 3;
+      } else {
+        base["Combi"] -= 3;
+      }
+    }
+
+    // High disruption → more freedom to reconfigure
+    if (dis === 'high') {
       base["System + Unvented Cylinder"] += 5;
       base["System + Mixergy (unvented)"] += 6;
     }
 
-    // Space constraints
+    // Space
     if (space === 'none') {
       base["System + Unvented Cylinder"] -= 100;
       base["System + Mixergy (unvented)"] -= 100;
@@ -106,22 +132,18 @@ export default async (req) => {
       base["Combi"] += 6;
     }
 
-    // Mixergy electrical requirement & cost signal
+    // Mixergy electrics & cost
     if (has16A) {
       base["System + Mixergy (unvented)"] += 6;
       base["Regular + Mixergy (vented)"] += 4;
     } else {
       base["System + Mixergy (unvented)"] -= 15;
-      base["Regular + Mixergy (vented)"] -= 5; // vented still possible but note cost if upgrading later
+      base["Regular + Mixergy (vented)"] -= 5;
     }
 
-    // Clamp 0..100
-    const clamp01 = v => Math.max(0, Math.min(100, v));
-    const initialScores = Object.fromEntries(
-      Object.entries(base).map(([k,v]) => [k, clamp01(v)])
-    );
+    const initialScores = Object.fromEntries(Object.entries(base).map(([k,v])=>[k,clamp01(v)]));
 
-    // ---------- Compose SYSTEM prompt for model ----------
+    // ---------- Model prompt ----------
     const SYSTEM = `
 You are an experienced UK heating adviser. Choose ONLY from:
 - Regular (open vented)
@@ -131,24 +153,21 @@ You are an experienced UK heating adviser. Choose ONLY from:
 - Combi
 Never propose heat pumps or electric-only.
 
-You are given:
-- Customer inputs
-- Transparent initial scores (0–100) computed by rules
+Rules to honour:
+- If disruption_tolerance = "low" → strong bias to KEEP THE SAME SYSTEM TYPE (like-for-like).
+- "post_retirement" persona suggests lower disruption, but do NOT override the like-for-like rule above.
+- Pressure/flow, occupancy, and space constraints as provided.
+- Mixergy requires a dedicated 16 A RCD/MCB and has higher cost; mention this if selected when electrics_16a != "yes".
 
-Task:
-1) Optionally adjust any score by at most ±10 based on nuances in the inputs/notes.
-2) Return the TOP FOUR options sorted by final score (desc).
-3) Provide one concise, evidence-based sentence per option.
-4) If any Mixergy option is included and electrics_16a != "yes", mention the 16 A RCD/MCB requirement and higher cost.
-
+You are given inputs and transparent initial scores (0–100). 
+Adjust scores by at most ±10 based on nuance, then return the TOP FOUR.
 Return STRICT JSON ONLY:
 {
   "recommendations":[
-    {"title":"<allowed title>","reason":"...","match": <0-100 integer>},
+    {"title":"<allowed title>","reason":"one concise evidence-based sentence","match": <0-100 integer>},
     ...
   ]
 }
-No markdown or extra keys.
 `;
 
     const USER = {
@@ -215,7 +234,6 @@ No markdown or extra keys.
       const title = fixTitle(String(r.title || ""));
       let reason = String(r.reason || "Evidence-based option.");
       let match = clamp01(num(r.match, initialScores[title] ?? 50));
-
       if (/mixergy/i.test(title) && needs16A) {
         if (!/16\s*A|RCD|MCB|cost/i.test(reason))
           reason += " Requires dedicated 16 A RCD/MCB; higher install cost.";
@@ -224,7 +242,7 @@ No markdown or extra keys.
       return { title, reason, match };
     });
 
-    // If the model ignored some good candidates, add best remaining by our scores
+    // Add best remaining by our base scores if fewer than 4
     const have = new Set(recs.map(r => r.title));
     const sortedByBase = Object.entries(initialScores)
       .sort((a,b)=>b[1]-a[1])
@@ -235,7 +253,6 @@ No markdown or extra keys.
       if (!have.has(c.title)) recs.push(c);
     }
 
-    // Sort one last time by match desc, cap to 4
     recs.sort((a,b)=>b.match - a.match);
     recs = recs.slice(0,4);
 
