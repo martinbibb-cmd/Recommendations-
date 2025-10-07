@@ -2,7 +2,7 @@ export default async (req) => {
   try {
     const input = await req.json();
 
-    // ---------- Allowed set ----------
+    // ---------- Allowed ----------
     const ALLOWED = [
       "Regular (open vented)",
       "System + Unvented Cylinder",
@@ -12,34 +12,44 @@ export default async (req) => {
     ];
 
     // ---------- Helpers ----------
-    const num = (v, d=0) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : d;
-    };
+    const num = (v, d=0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
     const str = (v) => String(v || "").toLowerCase();
     const clamp01 = v => Math.max(0, Math.min(100, v));
-
-    // Parse “12 @ 1.2 bar”
     const parseWorkingBar = (s) => {
       const m = String(s || "").match(/@?\s*([0-9]+(?:\.[0-9]+)?)\s*bar/i);
       return m ? Number(m[1]) : NaN;
     };
 
     // ---------- Inputs ----------
-    const flow = num(input.flow_lpm);
+    const flowRaw = num(input.flow_lpm);
     const standBar = num(input.standing_pressure_bar);
-    const workBar = parseWorkingBar(input.working_pressure_desc);
-    const workBarEff = Number.isFinite(workBar) ? workBar : (standBar ? Math.max(0, standBar - 0.3) : NaN);
-
-    const sys = str(input.existing_system);          // regular | system | combi | back_boiler...
-    const hw  = str(input.hot_water);                // vented | unvented | none
+    let workBar = parseWorkingBar(input.working_pressure_desc);
+    if (workBar === 0) workBar = NaN; // 0 means unknown, don't penalise
+    const method = str(input.pressure_test_method); // single_tap | two_tap | outside_tap
+    const sys  = str(input.existing_system);
+    const hw   = str(input.hot_water);
     const baths = Math.max(0, num(input.bathrooms, 1));
-    const occ = str(input.occupancy);                // two_plus_guests | family4plus ...
-    const dis = str(input.disruption_tolerance);     // low | medium | high
-    const space = str(input.space_for_cylinder);     // none | tight | ample
+    const occ  = str(input.occupancy);
+    const dis  = str(input.disruption_tolerance);
+    const space = str(input.space_for_cylinder);
     const has16A = str(input.electrics_16a) === 'yes';
-    const persona = str(input.persona);              // post_retirement, etc.
+    const persona = str(input.persona);
     const notes = String(input.additional_info || "");
+
+    // Flow-cup correction for combi (basic test)
+    const flowEffectiveForCombi = method === 'single_tap' ? Math.max(0, flowRaw - 2) : flowRaw;
+
+    // Flags
+    const workingOK1 = Number.isFinite(workBar) ? (workBar >= 1.0) : (standBar >= 1.5);
+    const workingOK2 = Number.isFinite(workBar) ? (workBar >= 2.0) : (standBar >= 2.0);
+
+    // Suitability gates from your rules of thumb
+    const COMBI_OK    = (flowEffectiveForCombi >= 10) && workingOK1;
+    const UNVENTED_OK = (flowRaw >= 30) && workingOK2;   // 25 mm main recommended (mentioned in reason)
+    const UNVENTED_NEAR = (flowRaw >= 25) && (Number.isFinite(workBar) ? workBar >= 1.8 : standBar >= 1.8);
+
+    // Stored systems benefit with more concurrent use
+    const storedDemand = baths >= 2 || /family|guests|two_to_three|two_plus_guests|family4plus/.test(occ);
 
     // ---------- Base scores ----------
     const base = {
@@ -50,34 +60,53 @@ export default async (req) => {
       "Combi":                            40
     };
 
-    const goodPressure = (standBar >= 2.5 || workBarEff >= 2.0) && flow >= 18;
-    const poorForMainsHW = (flow < 13) || (workBarEff && workBarEff < 1.5);
-
-    // Pressure/flow
-    if (goodPressure) {
-      base["System + Unvented Cylinder"] += 20;
-      base["System + Mixergy (unvented)"] += 20;
-      base["Combi"] += 10;
-      base["Regular (open vented)"] -= 3;
-    }
-    if (poorForMainsHW) {
-      base["System + Unvented Cylinder"] -= 20;
-      base["Combi"] -= 15;
+    // Pressure/flow — stored systems
+    if (UNVENTED_OK) {
+      base["System + Unvented Cylinder"] += 22;
+      base["System + Mixergy (unvented)"] += 22;
+      base["Regular (open vented)"] -= 4;
+    } else if (UNVENTED_NEAR) {
+      base["System + Unvented Cylinder"] += 10;
+      base["System + Mixergy (unvented)"] += 12;
     }
 
-    // Occupancy / bathrooms (stored systems bias)
-    const storedDemand = baths >= 2 || /family|guests|two_to_three|two_plus_guests|family4plus/.test(occ);
+    // Combi suitability
+    if (COMBI_OK) {
+      base["Combi"] += 18;
+      // Small household + tight space + not low disruption → combi makes lots of sense
+      const smallHousehold = baths <= 1 && /^(single|two_always)$/.test(occ);
+      const tightSpace = (space === 'tight' || space === 'none');
+      if (smallHousehold) base["Combi"] += 10;
+      if (tightSpace) base["Combi"] += 8;
+      if (dis === 'medium' || dis === 'high') base["Combi"] += 6;
+    } else {
+      // If we know it's below 10 L/min@1 bar, avoid combi
+      if (flowEffectiveForCombi < 10 && Number.isFinite(workBar) && workBar < 1.0) {
+        base["Combi"] -= 18;
+      }
+    }
+
+    // Concurrency favours stored
     if (storedDemand) {
       base["System + Unvented Cylinder"] += 12;
-      base["System + Mixergy (unvented)"] += 14;
+      base["System + Mixergy (unvented)"] += 14; // demand smoothing
       base["Regular + Mixergy (vented)"] += 10;
       base["Combi"] -= 10;
       base["Regular (open vented)"] -= 4;
     }
 
-    // -------- Disruption tolerance (UPDATED) --------
+    // Test method trust / “gold standard”
+    if (method === 'two_tap') {
+      base["System + Unvented Cylinder"] += 4;
+      base["System + Mixergy (unvented)"] += 5;
+      base["Regular + Mixergy (vented)"] += 4;
+    } else if (method === 'outside_tap') {
+      base["System + Unvented Cylinder"] += 2;
+      base["System + Mixergy (unvented)"] += 3;
+    }
+
+    // Disruption tolerance — like-for-like only when LOW
     if (dis === 'low') {
-      // KEEP THE SAME SYSTEM TYPE regardless of age/persona
       if (sys === 'regular' || (sys === 'back_boiler' && hw === 'vented')) {
         base["Regular (open vented)"] += 20;
         base["Regular + Mixergy (vented)"] += 12;
@@ -95,7 +124,7 @@ export default async (req) => {
       }
     }
 
-    // Persona: post_retirement → gentle nudge to lower disruption, but weaker than rule above
+    // Persona: post_retirement → gentle nudge to lower disruption (doesn't override)
     if (/post_retirement/.test(persona)) {
       if (sys === 'regular' || sys === 'back_boiler') {
         base["Regular (open vented)"] += 4;
@@ -105,19 +134,13 @@ export default async (req) => {
       }
     }
 
-    // High disruption → more freedom to reconfigure
-    if (dis === 'high') {
-      base["System + Unvented Cylinder"] += 5;
-      base["System + Mixergy (unvented)"] += 6;
-    }
-
-    // Space
+    // Space constraints
     if (space === 'none') {
       base["System + Unvented Cylinder"] -= 100;
       base["System + Mixergy (unvented)"] -= 100;
       base["Regular + Mixergy (vented)"] -= 100;
     } else if (space === 'tight') {
-      base["System + Unvented Cylinder"] -= 6;
+      base["System + Unvented Cylinder"] -= 10; // stronger than before
     }
 
     // Existing system inertia
@@ -132,6 +155,9 @@ export default async (req) => {
       base["Combi"] += 6;
     }
 
+    // Customer preference nudge
+    if (/\bwants?\s+a?\s*combi\b/i.test(notes)) base["Combi"] += 6;
+
     // Mixergy electrics & cost
     if (has16A) {
       base["System + Mixergy (unvented)"] += 6;
@@ -141,9 +167,11 @@ export default async (req) => {
       base["Regular + Mixergy (vented)"] -= 5;
     }
 
-    const initialScores = Object.fromEntries(Object.entries(base).map(([k,v])=>[k,clamp01(v)]));
+    const initialScores = Object.fromEntries(
+      Object.entries(base).map(([k,v])=>[k, clamp01(v)])
+    );
 
-    // ---------- Model prompt ----------
+    // ---------- Model prompt (kept tight) ----------
     const SYSTEM = `
 You are an experienced UK heating adviser. Choose ONLY from:
 - Regular (open vented)
@@ -153,18 +181,20 @@ You are an experienced UK heating adviser. Choose ONLY from:
 - Combi
 Never propose heat pumps or electric-only.
 
-Rules to honour:
-- If disruption_tolerance = "low" → strong bias to KEEP THE SAME SYSTEM TYPE (like-for-like).
-- "post_retirement" persona suggests lower disruption, but do NOT override the like-for-like rule above.
-- Pressure/flow, occupancy, and space constraints as provided.
-- Mixergy requires a dedicated 16 A RCD/MCB and has higher cost; mention this if selected when electrics_16a != "yes".
+Rules that must hold:
+- Flow-cup overestimates combi: when test_method="single_tap", treat flow for combi as flow-2 L/min.
+- COMBI rule-of-thumb: >=10 L/min @ >=1.0 bar (or standing >=1.5 bar if working unknown).
+- UNVENTED rule-of-thumb: >=30 L/min @ >=2.0 bar; 25 mm cold main recommended (mention in reason).
+- Mixergy works at any pressure; if pressure/flow poor prefer Regular+Mixergy (vented), if strong prefer System+Mixergy (unvented).
+- If disruption_tolerance="low": strong bias to KEEP THE SAME SYSTEM TYPE (like-for-like).
+- "post_retirement" persona gently favors lower-disruption, but does not override like-for-like.
+- If electrics_16a != "yes" and Mixergy is recommended, mention dedicated 16 A RCD/MCB and higher cost.
 
-You are given inputs and transparent initial scores (0–100). 
-Adjust scores by at most ±10 based on nuance, then return the TOP FOUR.
-Return STRICT JSON ONLY:
+You are given inputs + initial scores (0-100). You may adjust any score by ±10 max for nuance.
+Return TOP FOUR as STRICT JSON:
 {
   "recommendations":[
-    {"title":"<allowed title>","reason":"one concise evidence-based sentence","match": <0-100 integer>},
+    {"title":"<allowed>","reason":"one concise evidence-based sentence","match": <0-100>},
     ...
   ]
 }
@@ -172,9 +202,10 @@ Return STRICT JSON ONLY:
 
     const USER = {
       inputs: {
-        flow_lpm: flow,
+        flow_lpm: flowRaw,
+        flow_effective_for_combi: flowEffectiveForCombi,
         standing_pressure_bar: standBar,
-        working_pressure_bar: Number.isFinite(workBarEff) ? workBarEff : null,
+        working_pressure_bar: Number.isFinite(workBar) ? workBar : null,
         bathrooms: baths,
         occupancy: occ,
         disruption_tolerance: dis,
@@ -183,6 +214,7 @@ Return STRICT JSON ONLY:
         hot_water: hw,
         electrics_16a: has16A ? "yes" : (str(input.electrics_16a) || "no"),
         persona,
+        test_method: method,
         additional_info: notes
       },
       initial_scores: initialScores,
@@ -190,7 +222,6 @@ Return STRICT JSON ONLY:
       adjust_limit: 10
     };
 
-    // ---------- Call OpenAI ----------
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -239,15 +270,18 @@ Return STRICT JSON ONLY:
           reason += " Requires dedicated 16 A RCD/MCB; higher install cost.";
         match = clamp01(match - 10);
       }
+      // Mention 25 mm main for unvented where appropriate
+      if (title === "System + Unvented Cylinder") {
+        if (!/25\s*mm/i.test(reason)) reason += " 25 mm cold main recommended.";
+      }
       return { title, reason, match };
     });
 
-    // Add best remaining by our base scores if fewer than 4
+    // Backfill to 4 using base scores if needed
     const have = new Set(recs.map(r => r.title));
     const sortedByBase = Object.entries(initialScores)
       .sort((a,b)=>b[1]-a[1])
       .map(([k,v])=>({ title:k, match:v, reason:"Included based on rule score." }));
-
     for (const c of sortedByBase) {
       if (recs.length >= 4) break;
       if (!have.has(c.title)) recs.push(c);
@@ -261,6 +295,4 @@ Return STRICT JSON ONLY:
     });
 
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
-  }
-};
+    return new Response(JSON.stringify({ error
