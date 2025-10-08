@@ -102,6 +102,22 @@ async function run(){
 }
 
 // Bind after DOM is ready (important on iPhone/Safari)
+function auditIds(){
+  const ids = [
+    'bathrooms','simultaneous_use',
+    'standing_pressure','working_pf','test_method','flow_lpm',
+    'existing_system','hot_water','cyl_space','disruption','electrics_16a','property_condition',
+    'occupancy','future_plans','budget_priority','reliability_priority',
+    'notes','go','status','results','overviewWrap','overview'
+  ];
+  const missing = ids.filter(id => !document.getElementById(id));
+  alert("Missing IDs: " + (missing.length ? missing.join(", ") : "none"));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  auditIds(); // <— runs once when the page loads
+  document.getElementById('go')?.addEventListener('click', run);
+});
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('go')?.addEventListener('click', run);
 });
