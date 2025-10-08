@@ -3,39 +3,46 @@ const CONFIG = {
   PROXY_URL: 'https://survey-brain-api.martinbibb.workers.dev/api/recommend'
 };
 
-const $ = id => document.getElementById(id);
-const pct = n => Math.max(0, Math.min(100, Math.round(Number(n||0))));
+// Safe getters
+const val = id => (document.getElementById(id)?.value ?? '');
+const num = (id, fallback=0) => {
+  const n = Number(val(id));
+  return Number.isFinite(n) && n !== 0 ? n : fallback;
+};
+
+// Keep pct helper
+const pct = n => Math.max(0, Math.min(100, Math.round(Number(n || 0))));
 
 function readForm(){
   return {
     // demand
-    bathrooms: Number($('bathrooms').value || 1),
-    simultaneous_use: $('simultaneous_use').value, // yes|no
+    bathrooms: num('bathrooms', 1),
+    simultaneous_use: val('simultaneous_use'),                 // yes|no
     // water
-    standing_pressure_bar: Number($('standing_pressure').value || 0),
-    working_pressure_desc: $('working_pf').value,   // "12 L/min @ 1.2 bar"
-    pressure_test_method: $('test_method').value,   // single_tap|outside_tap|three_tap
-    flow_lpm: Number($('flow_lpm').value || 0),
+    standing_pressure_bar: num('standing_pressure', 0),
+    working_pressure_desc: val('working_pf'),                  // "12 L/min @ 1.2 bar"
+    pressure_test_method: val('test_method'),                  // single_tap|outside_tap|three_tap
+    flow_lpm: num('flow_lpm', 0),
     // existing
-    existing_system: $('existing_system').value,
-    hot_water: $('hot_water').value,
-    space_for_cylinder: $('cyl_space').value,       // none|tight|ample
-    disruption_tolerance: $('disruption').value,    // low|medium|high
-    electrics_16a: $('electrics_16a').value,        // yes|no|unknown
-    property_condition: $('property_condition').value, // gravity_old|modern_pressurised|unknown
+    existing_system: val('existing_system'),
+    hot_water: val('hot_water'),
+    space_for_cylinder: val('cyl_space'),                      // none|tight|ample
+    disruption_tolerance: val('disruption'),                   // low|medium|high
+    electrics_16a: val('electrics_16a'),                       // yes|no|unknown
+    property_condition: val('property_condition'),             // gravity_old|modern_pressurised|unknown
     // people & priorities
-    occupancy: $('occupancy').value,
-    future_plans: $('future_plans').value,          // yes|no|unsure
-    budget_priority: $('budget_priority').value,    // install_cost|running_costs|long_term_value|future_flex
-    reliability_priority: $('reliability_priority').value, // yes|no
+    occupancy: val('occupancy'),
+    future_plans: val('future_plans'),                         // yes|no|unsure
+    budget_priority: val('budget_priority'),                   // install_cost|running_costs|long_term_value|future_flex
+    reliability_priority: val('reliability_priority'),         // yes|no
     // notes
-    additional_info: $('notes').value
+    additional_info: val('notes')
   };
 }
 
 function renderOverview(text){
-  const wrap = $('overviewWrap');
-  const p = $('overview');
+  const wrap = document.getElementById('overviewWrap');
+  const p = document.getElementById('overview');
   if (text && String(text).trim().length){
     p.textContent = text;
     wrap.style.display = '';
@@ -45,7 +52,7 @@ function renderOverview(text){
 }
 
 function renderRecs(items){
-  const host = $('results');
+  const host = document.getElementById('results');
   if (!items || !items.length){
     host.innerHTML = '<article class="card"><p class="muted">No recommendations returned.</p></article>';
     return;
@@ -68,8 +75,8 @@ function renderRecs(items){
 }
 
 async function run(){
-  const status = $('status');
-  const results = $('results');
+  const status = document.getElementById('status');
+  const results = document.getElementById('results');
   results.innerHTML = '';
   renderOverview('');
   status.textContent = 'Scoring…';
@@ -94,4 +101,7 @@ async function run(){
   }
 }
 
-document.getElementById('go').addEventListener('click', run);
+// Bind after DOM is ready (important on iPhone/Safari)
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('go')?.addEventListener('click', run);
+});
