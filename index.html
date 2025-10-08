@@ -147,8 +147,8 @@
     </label>
 
     <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-      <button id="go" class="contrast">Get recommendations (top 4)</button>
-      <button id="print" type="button">Print</button>
+      <button id="go" type="button" class="contrast" onclick="window.SB?.run()">Get recommendations (top 4)</button>
+      <button id="print" type="button" onclick="window.SB?.print()">Print</button>
       <span id="status" class="muted"></span>
     </div>
   </article>
@@ -160,7 +160,7 @@
 
   <section id="results"></section>
 
-  <!-- Load ONE script only -->
-  <script src="recommends.js?v=10" defer></script>
+  <!-- One script, with cache-bust -->
+  <script src="recommends.js?v=12" defer></script>
 </body>
 </html>
