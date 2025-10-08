@@ -42,6 +42,32 @@ function readForm(){
     additional_info:         val('notes')
   };
 }
+// --- Toast-style ping for success or error ---
+function showPing(message, color = '#0b7a0b') {
+  const div = document.createElement('div');
+  div.textContent = message;
+  Object.assign(div.style, {
+    position: 'fixed',
+    top: '12px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: color,
+    color: 'white',
+    padding: '8px 16px',
+    borderRadius: '6px',
+    zIndex: 9999,
+    fontSize: '0.9rem',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+    opacity: '0',
+    transition: 'opacity 0.3s'
+  });
+  document.body.appendChild(div);
+  requestAnimationFrame(() => (div.style.opacity = '1'));
+  setTimeout(() => {
+    div.style.opacity = '0';
+    setTimeout(() => div.remove(), 300);
+  }, 1500);
+}
 
 function renderOverview(text){
   const wrap = document.getElementById('overviewWrap');
@@ -94,9 +120,10 @@ async function run(){
     if(!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
-    renderOverview(data.overview || data.summary || '');
-    renderRecs((data.recommendations || []).slice(0,4));
-    if (status) status.textContent = 'Done.';
+renderOverview(data.overview || data.summary || '');
+renderRecs((data.recommendations || []).slice(0,4));
+if (status) status.textContent = 'Done.';
+showPing('Results updated ✅', '#0b7a0b');
   }catch(err){
     console.error(err);
     if (status) status.textContent = 'Model call failed';
