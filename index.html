@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Survey Brain</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
@@ -15,17 +15,23 @@
     .progress{height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden}
     .progress>span{display:block;height:100%;background:#0b57d0}
     #overview{white-space:pre-wrap}
+    @media print{
+      header,nav,footer,button,#status{display:none !important}
+      body{background:#fff}
+      .card{box-shadow:none;border:1px solid #ccc}
+      a[href]:after{content:" (" attr(href) ")"; font-size:.9em}
+    }
   </style>
 </head>
 <body>
   <h1>Survey Brain</h1>
-  <p class="muted">Answer a few questions. We’ll score options and include a GPT overview to validate and explain the choice.</p>
+  <p class="muted">Answer a few questions. We’ll score options and include a GPT overview to explain the choice.</p>
 
   <article class="card">
     <h3>Property & Demand</h3>
     <div class="grid">
       <label>Bathrooms
-        <input id="bathrooms" type="number" value="1" min="1"/>
+        <input id="bathrooms" type="number" value="1" min="1" />
       </label>
       <label>Simultaneous use (showers/taps)?
         <select id="simultaneous_use">
@@ -34,10 +40,10 @@
         </select>
       </label>
       <label>Standing mains pressure (bar)
-        <input id="standing_pressure" type="number" step="0.1" value="3.0"/>
+        <input id="standing_pressure" type="number" step="0.1" value="3.0" />
       </label>
       <label>Working pressure & flow (e.g. 12 L/min @ 1.2 bar)
-        <input id="working_pf" placeholder="e.g. 12 L/min @ 1.2 bar"/>
+        <input id="working_pf" placeholder="e.g. 12 L/min @ 1.2 bar" />
       </label>
       <label>Water test method
         <select id="test_method">
@@ -47,7 +53,7 @@
         </select>
       </label>
       <label>Measured flow at kitchen/bath (L/min)
-        <input id="flow_lpm" type="number" step="0.1" value="12"/>
+        <input id="flow_lpm" type="number" step="0.1" value="12" />
       </label>
     </div>
   </article>
@@ -140,24 +146,12 @@
       <textarea id="notes" placeholder="e.g. wants a combi; cylinder cupboard can move; brand prefs; guests weekends…"></textarea>
     </label>
 
-<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-  <button id="go" class="contrast">Get recommendations (top 4)</button>
-  <button id="print" type="button">Print</button>
-  <span id="status" class="muted"></span>
-</div>
-
-<style>
-  /* progress bars */
-  .bar{height:6px;background:#ddd;border-radius:3px;margin:6px 0}
-  .fill{height:100%;background:#0b5bd3;border-radius:3px}
-  /* print-friendly */
-  @media print{
-    header,nav,footer,button,#status{display:none !important}
-    body{background:#fff}
-    .card{box-shadow:none;border:1px solid #ccc}
-    a[href]:after{content:" (" attr(href) ")"; font-size:.9em}
-  }
-</style>
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="go" class="contrast">Get recommendations (top 4)</button>
+      <button id="print" type="button">Print</button>
+      <span id="status" class="muted"></span>
+    </div>
+  </article>
 
   <article class="card" id="overviewWrap" style="display:none">
     <h3>GPT Overview</h3>
@@ -165,89 +159,8 @@
   </article>
 
   <section id="results"></section>
-<script>
-const CONFIG = {
-  PROXY_URL: 'https://survey-brain-api.martinbibb.workers.dev/api/recommend'
-};
 
-// --- helpers ---
-function v(id){ return document.getElementById(id).value; }
-function pct(n){ n = Math.max(0, Math.min(100, Number(n||0))); return Math.round(n); }
-
-function readForm(){
-  return {
-    flow_lpm: Number(v('flow')),
-    standing_pressure_bar: Number(v('standing_pressure')),
-    working_pressure_desc: v('working_pressure'),
-    pressure_test_method: v('test_method'),
-    existing_system: v('system'),
-    hot_water: v('hot_water'),
-    bathrooms: Number(v('bathrooms')),
-    occupancy: v('occupancy'),
-    disruption_tolerance: v('disruption'),
-    space_for_cylinder: v('cyl_space'),
-    electrics_16a: v('electrics_16a'),
-    persona: v('persona'),
-    additional_info: v('notes'),
-    priorities: {
-      install_cost: v('prio_install_cost'),
-      running_cost: v('prio_running_cost'),
-      disruption: v('prio_disruption'),
-      long_term_value: v('prio_long_term_value'),
-      future_flex: v('prio_future_flex'),
-    },
-    reliability_priority: v('reliability_priority')
-  };
-}
-
-async function run(){
-  const status = document.getElementById('status');
-  const results = document.getElementById('results');
-  status.textContent = 'Calling model…';
-  results.innerHTML = '';
-
-  try{
-    const payload = readForm();
-    const r = await fetch(CONFIG.PROXY_URL, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    });
-    if(!r.ok) throw new Error(await r.text());
-    const data = await r.json();
-    const items = (data.recommendations||[]).slice(0,4);
-
-    // render: recommendations first, then GPT summary below
-    results.innerHTML = `
-      <h3>Recommendations</h3>
-      ${items.map(x=>{
-        const m = pct(x.match);
-        return `
-          <article class="card">
-            <strong>${x.title}</strong> — ${m}% match
-            <div class="bar"><div class="fill" style="width:${m}%;"></div></div>
-            <p>${x.desc}</p>
-          </article>
-        `;
-      }).join('')}
-
-      <article class="card" style="margin-top:20px;background:#f7f7f7;padding:12px;border-left:4px solid #0b5bd3">
-        <h3 style="margin-top:0;">GPT Summary</h3>
-        <p style="margin-bottom:0;">${data.summary || '—'}</p>
-      </article>
-    `;
-    status.textContent = 'Done.';
-  }catch(err){
-    console.error(err);
-    status.textContent = 'Model call failed';
-    document.getElementById('results').innerHTML =
-      `<pre style="white-space:pre-wrap" class="card">${String(err).slice(0,2000)}</pre>`;
-  }
-}
-
-// wire up
-document.getElementById('go').addEventListener('click', run);
-document.getElementById('print').addEventListener('click', ()=> window.print());
-</script>
+  <!-- Load ONE script only -->
+  <script src="recommends.js?v=10" defer></script>
 </body>
 </html>
