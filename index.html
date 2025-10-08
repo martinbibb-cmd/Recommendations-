@@ -140,11 +140,24 @@
       <textarea id="notes" placeholder="e.g. wants a combi; cylinder cupboard can move; brand prefs; guests weekends…"></textarea>
     </label>
 
-    <div style="margin-top:12px">
-      <button id="go" class="contrast">Get recommendations</button>
-      <span id="status" class="muted" style="margin-left:8px"></span>
-    </div>
-  </article>
+<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+  <button id="go" class="contrast">Get recommendations (top 4)</button>
+  <button id="print" type="button">Print</button>
+  <span id="status" class="muted"></span>
+</div>
+
+<style>
+  /* progress bars */
+  .bar{height:6px;background:#ddd;border-radius:3px;margin:6px 0}
+  .fill{height:100%;background:#0b5bd3;border-radius:3px}
+  /* print-friendly */
+  @media print{
+    header,nav,footer,button,#status{display:none !important}
+    body{background:#fff}
+    .card{box-shadow:none;border:1px solid #ccc}
+    a[href]:after{content:" (" attr(href) ")"; font-size:.9em}
+  }
+</style>
 
   <article class="card" id="overviewWrap" style="display:none">
     <h3>GPT Overview</h3>
