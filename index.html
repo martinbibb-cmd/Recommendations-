@@ -152,7 +152,89 @@
   </article>
 
   <section id="results"></section>
+<script>
+const CONFIG = {
+  PROXY_URL: 'https://survey-brain-api.martinbibb.workers.dev/api/recommend'
+};
 
-  <script src="recommend.js"></script>
+// --- helpers ---
+function v(id){ return document.getElementById(id).value; }
+function pct(n){ n = Math.max(0, Math.min(100, Number(n||0))); return Math.round(n); }
+
+function readForm(){
+  return {
+    flow_lpm: Number(v('flow')),
+    standing_pressure_bar: Number(v('standing_pressure')),
+    working_pressure_desc: v('working_pressure'),
+    pressure_test_method: v('test_method'),
+    existing_system: v('system'),
+    hot_water: v('hot_water'),
+    bathrooms: Number(v('bathrooms')),
+    occupancy: v('occupancy'),
+    disruption_tolerance: v('disruption'),
+    space_for_cylinder: v('cyl_space'),
+    electrics_16a: v('electrics_16a'),
+    persona: v('persona'),
+    additional_info: v('notes'),
+    priorities: {
+      install_cost: v('prio_install_cost'),
+      running_cost: v('prio_running_cost'),
+      disruption: v('prio_disruption'),
+      long_term_value: v('prio_long_term_value'),
+      future_flex: v('prio_future_flex'),
+    },
+    reliability_priority: v('reliability_priority')
+  };
+}
+
+async function run(){
+  const status = document.getElementById('status');
+  const results = document.getElementById('results');
+  status.textContent = 'Calling model…';
+  results.innerHTML = '';
+
+  try{
+    const payload = readForm();
+    const r = await fetch(CONFIG.PROXY_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    const items = (data.recommendations||[]).slice(0,4);
+
+    // render: recommendations first, then GPT summary below
+    results.innerHTML = `
+      <h3>Recommendations</h3>
+      ${items.map(x=>{
+        const m = pct(x.match);
+        return `
+          <article class="card">
+            <strong>${x.title}</strong> — ${m}% match
+            <div class="bar"><div class="fill" style="width:${m}%;"></div></div>
+            <p>${x.desc}</p>
+          </article>
+        `;
+      }).join('')}
+
+      <article class="card" style="margin-top:20px;background:#f7f7f7;padding:12px;border-left:4px solid #0b5bd3">
+        <h3 style="margin-top:0;">GPT Summary</h3>
+        <p style="margin-bottom:0;">${data.summary || '—'}</p>
+      </article>
+    `;
+    status.textContent = 'Done.';
+  }catch(err){
+    console.error(err);
+    status.textContent = 'Model call failed';
+    document.getElementById('results').innerHTML =
+      `<pre style="white-space:pre-wrap" class="card">${String(err).slice(0,2000)}</pre>`;
+  }
+}
+
+// wire up
+document.getElementById('go').addEventListener('click', run);
+document.getElementById('print').addEventListener('click', ()=> window.print());
+</script>
 </body>
 </html>
