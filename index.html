@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Survey Brain</title>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#0b2770"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
     body{max-width:920px;margin:2rem auto}
@@ -24,7 +26,12 @@
   </style>
 </head>
 <body>
-  <h1>Survey Brain</h1>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.5rem">
+    <h1 style="margin:0">Survey Brain</h1>
+    <a href="floorplan.html" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#0b2770;color:#fff;border-radius:8px;text-decoration:none;font-size:.88rem;font-weight:600">
+      🏠 Floor Planner
+    </a>
+  </div>
   <p class="muted">Answer a few questions. We’ll score options and include a GPT overview to explain the choice.</p>
 
   <article class="card">
@@ -162,5 +169,10 @@
 
   <!-- One script, with cache-bust -->
   <script src="recommend.js?v=2" defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW:', e));
+    }
+  </script>
 </body>
 </html>

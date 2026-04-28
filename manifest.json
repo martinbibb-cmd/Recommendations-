@@ -1,0 +1,43 @@
+{
+  "name": "Survey Brain – Floor Planner",
+  "short_name": "Floor Planner",
+  "description": "LiDAR-based floor planning for heating system surveys",
+  "start_url": "/floorplan.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0b2770",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='24' fill='%230b2770'/><text y='140' x='18' font-size='140' font-family='sans-serif'>🏠</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/floorplan.html",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "scan",
+          "accept": [".ply", ".obj", ".xyz", ".txt", "application/octet-stream"]
+        }
+      ]
+    }
+  },
+  "shortcuts": [
+    {
+      "name": "New Floor Plan",
+      "url": "/floorplan.html?new=1",
+      "description": "Start a new floor plan"
+    },
+    {
+      "name": "Survey Brain",
+      "url": "/index.html",
+      "description": "Open the recommendation engine"
+    }
+  ]
+}
