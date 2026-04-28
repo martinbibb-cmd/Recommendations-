@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>Floor Planner – Survey Brain</title>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#0b2770"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body { display: flex; flex-direction: column; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      flex-shrink: 0;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      padding: 6px 10px;
+      background: #0b2770;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      z-index: 20;
+    }
+    #toolbar .logo { font-weight: 700; font-size: 1rem; color: #fff; text-decoration: none; white-space: nowrap; }
+    #toolbar .logo span { opacity: .6; font-size: .85em; }
+    #toolbar .sep { width: 1px; height: 24px; background: rgba(255,255,255,.2); margin: 0 4px; }
+    #toolbar .tbtn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,.25);
+      background: transparent; color: #e2e8f0; cursor: pointer; font-size: .82rem;
+      white-space: nowrap; transition: background .15s;
+    }
+    #toolbar .tbtn:hover  { background: rgba(255,255,255,.12); }
+    #toolbar .tbtn.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
+    #floor-name-input {
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; border-radius: 6px; padding: 3px 8px; font-size: .82rem; max-width: 160px;
+    }
+
+    /* ── Tool strip ── */
+    #toolstrip {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+      padding: 4px 10px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+    }
+    .tool-group { display: flex; gap: 3px; align-items: center; }
+    .tool-group-label { font-size: .68rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-right: 2px; }
+    .xtool {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 4px 8px; border-radius: 5px; border: 1px solid transparent;
+      background: #334155; color: #cbd5e1; cursor: pointer; font-size: .78rem;
+      transition: background .12s, border-color .12s;
+    }
+    .xtool:hover  { background: #475569; }
+    .xtool.active { background: #1d4ed8; border-color: #3b82f6; color: #fff; }
+    #wall-thick-wrap, #open-width-wrap { display: flex; align-items: center; gap: 4px; font-size: .78rem; color: #94a3b8; }
+    #wall-thick-wrap input, #open-width-wrap input {
+      width: 60px; padding: 3px 6px; border-radius: 4px;
+      background: #334155; border: 1px solid #475569; color: #e2e8f0; font-size: .78rem;
+    }
+    #tool-hint { font-size: .75rem; color: #60a5fa; margin-left: 8px; }
+    #measure-result { font-size: .8rem; color: #a78bfa; display: none; }
+
+    /* ── Main layout ── */
+    #app {
+      flex: 1; display: flex; overflow: hidden;
+    }
+
+    /* ── Library sidebar ── */
+    #library {
+      width: 180px; flex-shrink: 0;
+      background: #1e293b; border-right: 1px solid #334155;
+      overflow-y: auto; padding: 8px 6px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    #library h4 { margin: 0 0 4px; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: #64748b; }
+    .lib-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 8px; border-radius: 7px; border: 1px solid #334155;
+      background: #0f172a; cursor: pointer; color: #cbd5e1; font-size: .8rem;
+      transition: background .12s, border-color .12s;
+    }
+    .lib-item:hover  { background: #1d4ed822; border-color: #3b82f6; }
+    .lib-item .icon  { font-size: 1.3em; }
+    .lib-item .badge {
+      margin-left: auto; font-size: .65rem; padding: 1px 5px; border-radius: 10px;
+      background: #334155; color: #94a3b8;
+    }
+    .lib-item .badge.wall { background: #1e3a5f; color: #93c5fd; }
+    .lib-item .badge.uf   { background: #1c3029; color: #6ee7b7; }
+    .lib-divider { border: none; border-top: 1px solid #334155; margin: 2px 0; }
+
+    /* ── Canvas wrap ── */
+    #canvas-wrap {
+      flex: 1; position: relative; overflow: hidden; background: #f8fafc;
+    }
+    #fp-canvas { display: block; cursor: crosshair; touch-action: none; }
+    #canvas-wrap.tool-select #fp-canvas { cursor: default; }
+    #canvas-wrap.tool-erase  #fp-canvas { cursor: cell; }
+
+    /* ── Properties panel ── */
+    #props-aside {
+      width: 210px; flex-shrink: 0;
+      background: #1e293b; border-left: 1px solid #334155;
+      overflow-y: auto; padding: 10px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    #props-aside h4 { margin: 0 0 6px; font-size: .82rem; color: #94a3b8; }
+    #props-panel label { display: flex; flex-direction: column; font-size: .78rem; color: #94a3b8; gap: 3px; }
+    #props-panel input, #props-panel select {
+      padding: 4px 6px; border-radius: 5px;
+      background: #0f172a; border: 1px solid #334155; color: #e2e8f0; font-size: .78rem;
+    }
+    #props-panel button {
+      padding: 5px 10px; border-radius: 5px; border: 1px solid #334155;
+      background: #334155; color: #e2e8f0; cursor: pointer; font-size: .78rem; width: 100%;
+    }
+    #props-panel button:hover { background: #ef4444; border-color: #ef4444; color: #fff; }
+    #props-panel p.status-ok  { color: #22c55e; font-size: .78rem; margin: 2px 0; }
+    #props-panel p.status-warn { color: #f59e0b; font-size: .78rem; margin: 2px 0; }
+    #props-panel .pp-sep { border: none; border-top: 1px solid #334155; }
+    #props-panel ul { padding-left: 14px; font-size: .78rem; color: #94a3b8; }
+    #props-panel li { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+    #props-panel li button { width: auto; padding: 1px 6px; font-size: .72rem; }
+
+    /* ── LiDAR dialog ── */
+    dialog#lidar-dialog {
+      max-width: 720px; width: 96vw; border-radius: 12px;
+      padding: 0; background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
+    }
+    dialog#lidar-dialog::backdrop { background: rgba(0,0,0,.7); }
+    #lidar-dialog-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-bottom: 1px solid #334155; background: #0f172a;
+      border-radius: 12px 12px 0 0;
+    }
+    #lidar-dialog-header h3 { margin: 0; font-size: .95rem; }
+    #lidar-dialog-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+    #lidar-viewer { width: 100%; height: 280px; border-radius: 8px; overflow: hidden; background: #0f172a; }
+    #lidar-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    #lidar-controls label { font-size: .82rem; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
+    #lidar-controls input[type=file] { font-size: .8rem; color: #cbd5e1; }
+    #lidar-controls input[type=number] {
+      width: 70px; padding: 3px 6px; border-radius: 5px;
+      background: #0f172a; border: 1px solid #334155; color: #e2e8f0; font-size: .8rem;
+    }
+    #lidar-status { font-size: .78rem; color: #60a5fa; min-height: 1.4em; }
+    #lidar-dialog-footer {
+      padding: 10px 16px; border-top: 1px solid #334155;
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+    .dbtn {
+      padding: 6px 14px; border-radius: 6px; border: 1px solid #334155;
+      background: #334155; color: #e2e8f0; cursor: pointer; font-size: .82rem;
+    }
+    .dbtn.primary { background: #1d4ed8; border-color: #3b82f6; color: #fff; }
+    .dbtn:hover { opacity: .85; }
+
+    /* ── Responsive ── */
+    @media (max-width: 680px) {
+      #library { width: 52px; }
+      .lib-item span:not(.icon), .lib-item .badge { display: none; }
+      #library h4 { display: none; }
+      #props-aside { width: 46px; }
+      #props-aside h4, #props-panel { display: none; }
+    }
+
+    /* ── Print ── */
+    @media print {
+      #toolbar, #toolstrip, #library, #props-aside { display: none !important; }
+      #app { overflow: visible; }
+      #canvas-wrap { flex: none; width: 100vw; height: 100vh; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ TOOLBAR ════════════════════════════════ -->
+<div id="toolbar">
+  <a href="index.html" class="logo">Survey Brain <span>/ Floor Planner</span></a>
+  <div class="sep"></div>
+  <input id="floor-name-input" value="Ground Floor" placeholder="Floor name" title="Floor name"/>
+  <div class="sep"></div>
+  <button class="tbtn" id="btn-new"         title="New plan (Ctrl+N)">＋ New</button>
+  <button class="tbtn" id="btn-save"         title="Save to browser (Ctrl+S)">💾 Save</button>
+  <button class="tbtn" id="btn-fit"          title="Fit view (F)">⊡ Fit</button>
+  <button class="tbtn" id="btn-dims"         title="Toggle dimensions">📐 Dims</button>
+  <button class="tbtn" id="btn-load-lidar"   title="Load LiDAR scan">📡 LiDAR</button>
+  <button class="tbtn" id="btn-export"       title="Export SVG floor plan">⤓ SVG</button>
+  <a href="index.html" class="tbtn" title="Go to recommendation engine">⇦ Recommendations</a>
+</div>
+
+<!-- ════════════════════════════════ TOOLSTRIP ═════════════════════════════ -->
+<div id="toolstrip">
+  <div class="tool-group">
+    <span class="tool-group-label">Edit</span>
+    <button class="xtool active" data-tool="select"  title="Select / Move  [Esc]">↖ Select</button>
+    <button class="xtool"        data-tool="erase"   title="Erase          [E]">✕ Erase</button>
+  </div>
+  <div class="tool-group">
+    <span class="tool-group-label">Build</span>
+    <button class="xtool" data-tool="wall"   title="Draw wall       [W]">▦ Wall</button>
+    <button class="xtool" data-tool="door"   title="Add door        [D]">🚪 Door</button>
+    <button class="xtool" data-tool="window" title="Add window      [N]">🪟 Window</button>
+  </div>
+  <div class="tool-group">
+    <span class="tool-group-label">Measure</span>
+    <button class="xtool" data-tool="measure" title="Measure distance [M]">📏 Measure</button>
+  </div>
+  <div id="wall-thick-wrap">
+    <label for="wall-thickness">Wall&nbsp;t:</label>
+    <input id="wall-thickness" type="number" step="0.025" min="0.05" max="0.6" value="0.1" title="Wall thickness (m)"/>
+    <span style="font-size:.7rem">m</span>
+  </div>
+  <div id="open-width-wrap">
+    <label for="opening-width">Opening&nbsp;w:</label>
+    <input id="opening-width" type="number" step="0.05" min="0.4" max="3" value="0.9" title="Door/window width (m)"/>
+    <span style="font-size:.7rem">m</span>
+  </div>
+  <span id="tool-hint"></span>
+  <span id="measure-result"></span>
+</div>
+
+<!-- ══════════════════════════════════ APP ═════════════════════════════════ -->
+<div id="app">
+
+  <!-- ── Library ── -->
+  <aside id="library">
+
+    <div>
+      <h4>🔧 Heating</h4>
+      <div class="lib-item" data-comp="boiler" title="Boiler – wall mounted">
+        <span class="icon">🔥</span><span>Boiler</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-comp="back_boiler" title="Back boiler – wall mounted">
+        <span class="icon">🔥</span><span>Back Boiler</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-comp="cylinder" title="Hot water cylinder – free standing">
+        <span class="icon">🛢</span><span>Cylinder</span>
+      </div>
+      <div class="lib-item" data-comp="radiator" title="Radiator – wall mounted">
+        <span class="icon">♨</span><span>Radiator</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-comp="towel_rail" title="Towel rail – wall mounted">
+        <span class="icon">🌡</span><span>Towel Rail</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-comp="pump" title="Circulation pump">
+        <span class="icon">⚙</span><span>Pump</span>
+      </div>
+      <div class="lib-item" data-comp="manifold" title="UFH manifold">
+        <span class="icon">⊞</span><span>Manifold</span>
+      </div>
+      <div class="lib-item" data-comp="trv" title="TRV / isolation valve">
+        <span class="icon">🔧</span><span>TRV / Valve</span>
+      </div>
+    </div>
+
+    <hr class="lib-divider"/>
+
+    <div>
+      <h4>⌇ Pipework</h4>
+      <div class="lib-item" data-pipe="flow:onwall" title="Flow pipe – on wall/surface">
+        <span class="icon" style="color:#ef4444">━</span><span>Flow</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-pipe="return:onwall" title="Return pipe – on wall/surface">
+        <span class="icon" style="color:#3b82f6">━</span><span>Return</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-pipe="flow:underfloor" title="Flow – under floor">
+        <span class="icon" style="color:#ef4444">╌</span><span>Flow UF</span><span class="badge uf">u/floor</span>
+      </div>
+      <div class="lib-item" data-pipe="return:underfloor" title="Return – under floor">
+        <span class="icon" style="color:#3b82f6">╌</span><span>Return UF</span><span class="badge uf">u/floor</span>
+      </div>
+      <div class="lib-item" data-pipe="cold:onwall" title="Cold water – on wall">
+        <span class="icon" style="color:#06b6d4">━</span><span>Cold</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-pipe="cold:underfloor" title="Cold water – under floor">
+        <span class="icon" style="color:#06b6d4">╌</span><span>Cold UF</span><span class="badge uf">u/floor</span>
+      </div>
+      <div class="lib-item" data-pipe="gas:onwall" title="Gas supply pipe – on wall">
+        <span class="icon" style="color:#eab308">━</span><span>Gas</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-pipe="ufh_flow:underfloor" title="UFH flow – under floor">
+        <span class="icon" style="color:#f97316">╌</span><span>UFH Flow</span><span class="badge uf">u/floor</span>
+      </div>
+      <div class="lib-item" data-pipe="ufh_return:underfloor" title="UFH return – under floor">
+        <span class="icon" style="color:#fb923c">╌</span><span>UFH Rtn</span><span class="badge uf">u/floor</span>
+      </div>
+    </div>
+
+    <hr class="lib-divider"/>
+
+    <div>
+      <h4>🪑 Fixtures</h4>
+      <div class="lib-item" data-comp="bath" title="Bath">
+        <span class="icon">🛁</span><span>Bath</span>
+      </div>
+      <div class="lib-item" data-comp="shower" title="Shower tray – wall mounted">
+        <span class="icon">🚿</span><span>Shower</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-comp="wc" title="WC – wall mounted">
+        <span class="icon">🚽</span><span>WC</span><span class="badge wall">wall</span>
+      </div>
+      <div class="lib-item" data-comp="sink" title="Sink / basin – wall mounted">
+        <span class="icon">🪣</span><span>Sink/Basin</span><span class="badge wall">wall</span>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── Canvas ── -->
+  <div id="canvas-wrap">
+    <canvas id="fp-canvas"></canvas>
+  </div>
+
+  <!-- ── Properties ── -->
+  <aside id="props-aside">
+    <h4 style="margin:0;font-size:.82rem;color:#94a3b8;padding:2px 0 6px">Properties</h4>
+    <div id="props-panel">
+      <p style="color:#475569;font-size:.78rem;margin:0">Select an element to edit its properties.</p>
+    </div>
+  </aside>
+
+</div>
+
+<!-- ══════════════════════════════ LIDAR DIALOG ════════════════════════════ -->
+<dialog id="lidar-dialog">
+  <div id="lidar-dialog-header">
+    <h3>📡 Load LiDAR Scan</h3>
+    <button class="dbtn" id="close-lidar" style="padding:3px 10px">✕</button>
+  </div>
+  <div id="lidar-dialog-body">
+    <p style="margin:0;font-size:.82rem;color:#94a3b8">
+      Load a <code>.ply</code>, <code>.obj</code>, or <code>.xyz</code> point-cloud file from your scanning app.
+      The cyan plane marks the auto-slice height used to detect walls.
+    </p>
+    <div id="lidar-viewer"></div>
+    <div id="lidar-controls">
+      <label>
+        Scan file:
+        <input type="file" id="lidar-file" accept=".ply,.obj,.xyz,.txt"/>
+      </label>
+      <label>
+        Slice height (m):
+        <input type="number" id="slice-height" value="1.2" step="0.05" min="0.5" max="2.5"/>
+      </label>
+    </div>
+    <div id="lidar-status">No scan loaded.</div>
+  </div>
+  <div id="lidar-dialog-footer">
+    <button class="dbtn" id="close-lidar-2">Cancel</button>
+    <button class="dbtn primary" id="btn-extract-plan">⚡ Extract Floor Plan from Scan</button>
+  </div>
+</dialog>
+
+<!-- Three.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.166.0/build/three.min.js"></script>
+<!-- Floor planner app -->
+<script src="floorplan.js"></script>
+</body>
+</html>
