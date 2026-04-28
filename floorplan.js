@@ -1442,7 +1442,11 @@ function exportSVG(state) {
     const pts   = pipe.points.map(p => `${tx(p.x)},${ty(p.y)}`).join(' ');
     const dash  = def.dash.length ? `stroke-dasharray="${def.dash.join(' ')}"` : '';
     svg += `<polyline points="${pts}" fill="none" stroke="${def.color}" stroke-width="${isUF?3:2}" ${dash} stroke-linecap="round" stroke-linejoin="round" opacity="${isUF?0.7:1}"/>\n`;
-    svg += `<text font-size="4" fill="${def.color}" text-anchor="middle"><textPath href="#_p${pipe.id}" startOffset="50%">${def.label}${isUF?' (UF)':''}</textPath></text>\n`;
+    // Label at midpoint of the pipe polyline
+    if (pipe.points.length >= 2) {
+      const mi = Math.floor(pipe.points.length / 2);
+      svg += `<text x="${tx(pipe.points[mi].x)}" y="${ty(pipe.points[mi].y)}" dy="-3" font-size="4" fill="${def.color}" text-anchor="middle">${def.label}${isUF?' (UF)':''}</text>\n`;
+    }
   }
 
   // Components
@@ -1577,7 +1581,8 @@ class FloorPlanApp {
       if (!confirm('Start a new floor plan? Unsaved changes will be lost.')) return;
       this.state.walls = []; this.state.components = []; this.state.pipes = [];
       this.state.floorName = 'Ground Floor';
-      document.getElementById('floor-name-input').value = 'Ground Floor';
+      document.getElementById('floor-name-input')?.value !== undefined &&
+        (document.getElementById('floor-name-input').value = 'Ground Floor');
       this.state._fire();
       this._centerView();
       this.props.show(null);
